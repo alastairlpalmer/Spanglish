@@ -5,13 +5,14 @@
 // entry through the review endpoint and feeds the ledger.
 
 import { useCallback, useEffect, useState } from 'react';
-import type { DiaryEntry, ReviewResponse } from '@seiscientas/shared';
+import type { DiaryEntry, ReviewResponse, SayResponse } from '@seiscientas/shared';
 import { diaryEntries, saveDiaryEntry, recordReviewErrors } from '../../db/repo';
 import { apiPost, ApiError } from '../../lib/api';
 import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
+import { STARTER_GROUPS } from './starters';
 
 interface CheckState {
   entryId: string;
@@ -25,6 +26,46 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [draft, setDraft] = useState('');
   const [check, setCheck] = useState<CheckState | null>(null);
+
+  // Scaffolding fades with level: open for true beginners, tucked behind a
+  // toggle at A2, gone from B1.
+  const beginner = ['A0', 'A1'].includes(profile.level);
+  const scaffoldAvailable = ['A0', 'A1', 'A2'].includes(profile.level);
+  const [helpOpen, setHelpOpen] = useState(beginner);
+  const [english, setEnglish] = useState('');
+  const [saying, setSaying] = useState(false);
+  const [sayError, setSayError] = useState<string | null>(null);
+
+  function append(text: string): void {
+    setDraft((d) => {
+      if (!d) return text;
+      const needsSpace = !d.endsWith(' ');
+      return `${d}${needsSpace ? ' ' : ''}${text}`;
+    });
+  }
+
+  async function sayIt(): Promise<void> {
+    const phrase = english.trim();
+    if (!phrase || saying) return;
+    setSaying(true);
+    setSayError(null);
+    try {
+      const res = await apiPost<SayResponse>('/api/ai/say', {
+        english: phrase,
+        level: profile.level,
+      });
+      append(res.spanish);
+      setEnglish('');
+    } catch (e) {
+      setSayError(
+        e instanceof ApiError && e.code === 'budget_paused'
+          ? 'AI features paused until tomorrow.'
+          : 'Could not translate. Retry.',
+      );
+    } finally {
+      setSaying(false);
+    }
+  }
 
   const hold = useHoldToTalk(localeForDialect(profile.dialect), (text) => {
     setDraft((d) => (d ? `${d} ${text}` : text));
@@ -88,6 +129,58 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
         autoCapitalize="off"
         style={{ minHeight: 90 }}
       />
+
+      {/* Beginner scaffolding — open at A0/A1, behind a toggle at A2, gone
+          from B1. The training wheels remove themselves. */}
+      {scaffoldAvailable && !beginner && (
+        <button className="btn quiet" onClick={() => setHelpOpen(!helpOpen)}>
+          {helpOpen ? 'hide help' : 'help'}
+        </button>
+      )}
+      {scaffoldAvailable && helpOpen && (
+        <div className="stack" style={{ gap: 8 }}>
+          {STARTER_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="eyebrow" style={{ marginBottom: 4 }}>
+                {group.label}
+              </p>
+              <div className="starter-group">
+                {group.items.map((s) => (
+                  <button key={s.es} className="starter-chip" onClick={() => append(s.es)}>
+                    <span className="es" lang="es">
+                      {s.es}
+                    </span>
+                    <span className="en">{s.en}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <p className="eyebrow" style={{ marginBottom: 0 }}>
+            ¿cómo se dice…?
+          </p>
+          <form
+            className="row"
+            style={{ gap: 8, padding: 0 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sayIt();
+            }}
+          >
+            <input
+              value={english}
+              onChange={(e) => setEnglish(e.target.value)}
+              placeholder="Type it in English"
+              disabled={saying || !navigator.onLine}
+            />
+            <button className="btn" type="submit" disabled={saying || !english.trim()}>
+              {saying ? '…' : 'Say it'}
+            </button>
+          </form>
+          {sayError && <p className="error-line">{sayError}</p>}
+        </div>
+      )}
       {showVoice && (
         <div>
           <p className="interim">{hold.interim || (hold.state === 'holding' ? 'listening' : '')}</p>

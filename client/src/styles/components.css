@@ -693,6 +693,36 @@
   background: var(--ochre);
 }
 
+/* --- diary starters (beginner scaffolding) --- */
+.starter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.starter-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-button);
+  background: var(--surface2);
+  min-height: 0;
+}
+
+.starter-chip .es {
+  font-size: 13px;
+  color: var(--paper);
+}
+
+.starter-chip .en {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
 /* --- misc --- */
 .offline-banner {
   font-family: var(--font-mono);

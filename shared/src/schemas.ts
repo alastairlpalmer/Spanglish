@@ -102,6 +102,15 @@ export const serialResponseSchema = z.object({
   gloss: z.array(glossEntrySchema).min(4).max(40),
 });
 
+// ---- /api/ai/say (diary scaffolding: English phrase -> simple Spanish) ----
+export const sayRequestSchema = z.object({
+  english: z.string().min(1).max(200),
+  level: z.string(),
+});
+export const sayResponseSchema = z.object({
+  spanish: z.string().min(1),
+});
+
 // ---- /api/ai/word (tap-any-word lookup in Read) ----
 export const wordRequestSchema = z.object({
   word: z.string().min(1).max(60),
@@ -154,6 +163,8 @@ export type ArticleResponse = z.infer<typeof articleResponseSchema>;
 export type GlossEntry = z.infer<typeof glossEntrySchema>;
 export type SerialRequest = z.infer<typeof serialRequestSchema>;
 export type SerialResponse = z.infer<typeof serialResponseSchema>;
+export type SayRequest = z.infer<typeof sayRequestSchema>;
+export type SayResponse = z.infer<typeof sayResponseSchema>;
 export type WordRequest = z.infer<typeof wordRequestSchema>;
 export type WordResponse = z.infer<typeof wordResponseSchema>;
 export type TranslateRequest = z.infer<typeof translateRequestSchema>;

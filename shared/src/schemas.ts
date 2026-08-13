@@ -88,6 +88,17 @@ export const articleResponseSchema = z.object({
   gloss: z.array(glossEntrySchema).min(6).max(40),
 });
 
+// ---- /api/ai/word (tap-any-word lookup in Read) ----
+export const wordRequestSchema = z.object({
+  word: z.string().min(1).max(60),
+  sentence: z.string().min(1).max(500),
+  level: z.string(),
+});
+export const wordResponseSchema = z.object({
+  meaning: z.string().min(1),
+  note: z.string().nullable(),
+});
+
 // ---- /api/ai/translate (Read's translation practice) ----
 export const translateRequestSchema = z.object({
   body: z.string().min(1),
@@ -127,6 +138,8 @@ export const drillResponseSchema = z.object({
 export type ArticleRequest = z.infer<typeof articleRequestSchema>;
 export type ArticleResponse = z.infer<typeof articleResponseSchema>;
 export type GlossEntry = z.infer<typeof glossEntrySchema>;
+export type WordRequest = z.infer<typeof wordRequestSchema>;
+export type WordResponse = z.infer<typeof wordResponseSchema>;
 export type TranslateRequest = z.infer<typeof translateRequestSchema>;
 export type TranslateResponse = z.infer<typeof translateResponseSchema>;
 export type CardsRequest = z.infer<typeof cardsRequestSchema>;

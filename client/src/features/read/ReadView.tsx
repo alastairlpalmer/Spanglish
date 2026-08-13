@@ -52,36 +52,52 @@ function sentenceFor(body: string, word: string): string {
   return (hit ?? body).trim();
 }
 
-/** Render the body with glossed words wrapped in tappable spans. */
+const WORD_RE = /^[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]{2,}$/;
+
+/** Render the body: glossed words underlined, and EVERY other word tappable
+ *  for an on-demand lookup — beginners need the whole text to answer back. */
 function GlossedBody({
   body,
   gloss,
   onTap,
+  onTapAny,
 }: {
   body: string;
   gloss: GlossEntry[];
   onTap: (entry: GlossEntry) => void;
+  onTapAny: (word: string) => void;
 }): JSX.Element {
   const nodes = useMemo(() => {
-    // Build one regex over all gloss words, longest first so multi-word
-    // entries ("hora punta") win over their parts.
+    // One regex over all gloss words, longest first so multi-word entries
+    // ("hora punta") win over their parts.
     const words = [...gloss].sort((a, b) => b.word.length - a.word.length);
     const escaped = words.map((g) => g.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    if (escaped.length === 0) return [body];
-    const re = new RegExp(`(${escaped.join('|')})`, 'gi');
-    const parts = body.split(re);
-    return parts.map((part, i) => {
+    const parts = escaped.length
+      ? body.split(new RegExp(`(${escaped.join('|')})`, 'gi'))
+      : [body];
+
+    let key = 0;
+    return parts.flatMap((part) => {
       const entry = gloss.find((g) => g.word.toLowerCase() === part.toLowerCase());
       if (entry) {
         return (
-          <span key={i} className="glossed" onClick={() => onTap(entry)}>
+          <span key={key++} className="glossed" onClick={() => onTap(entry)}>
             {part}
           </span>
         );
       }
-      return part;
+      // Plain text: every word token still gets a tap target.
+      return part.split(/([a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+)/).map((tok) =>
+        WORD_RE.test(tok) ? (
+          <span key={key++} onClick={() => onTapAny(tok)}>
+            {tok}
+          </span>
+        ) : (
+          <span key={key++}>{tok}</span>
+        ),
+      );
     });
-  }, [body, gloss, onTap]);
+  }, [body, gloss, onTap, onTapAny]);
 
   return <p className="reading-body">{nodes}</p>;
 }
@@ -92,6 +108,7 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [glossOpen, setGlossOpen] = useState<GlossEntry | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
   const [mined, setMined] = useState<Set<string>>(new Set());
   const [translating, setTranslating] = useState(false);
   const [attempt, setAttempt] = useState('');
@@ -254,6 +271,34 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
     setLoggedPodcast(name);
   }
 
+  async function lookupWord(word: string): Promise<void> {
+    if (!article) return;
+    // Already-glossed words route through their existing entry.
+    const known = article.gloss.find((g) => g.word.toLowerCase() === word.toLowerCase());
+    if (known) {
+      setGlossOpen(known);
+      return;
+    }
+    if (!navigator.onLine) {
+      setGlossOpen({ word, meaning: 'Lookup needs a connection.' });
+      return;
+    }
+    setLookingUp(true);
+    setGlossOpen({ word, meaning: '…' });
+    try {
+      const res = await apiPost<{ meaning: string; note: string | null }>('/api/ai/word', {
+        word,
+        sentence: sentenceFor(article.body, word),
+        level: profile.level,
+      });
+      setGlossOpen({ word, meaning: res.note ? `${res.meaning} — ${res.note}` : res.meaning });
+    } catch {
+      setGlossOpen({ word, meaning: 'Lookup failed. Tap again to retry.' });
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
   const textSize = 19 * (profile.text_size / 100);
 
   return (
@@ -291,7 +336,12 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
           <>
             <h2 lang="es">{article.headline}</h2>
             <p className="reading-source">{article.source}</p>
-            <GlossedBody body={article.body} gloss={article.gloss} onTap={setGlossOpen} />
+            <GlossedBody
+              body={article.body}
+              gloss={article.gloss}
+              onTap={setGlossOpen}
+              onTapAny={(w) => void lookupWord(w)}
+            />
 
             <div className="reading-controls">
               {!profile.quiet_mode && (
@@ -387,7 +437,12 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
               {mined.has(glossOpen.word) ? (
                 <button disabled>in the deck</button>
               ) : (
-                <button onClick={() => void mine(glossOpen)}>Add to deck</button>
+                <button
+                  disabled={lookingUp || glossOpen.meaning === '…'}
+                  onClick={() => void mine(glossOpen)}
+                >
+                  Add to deck
+                </button>
               )}
               <button onClick={() => setGlossOpen(null)}>Close</button>
             </div>

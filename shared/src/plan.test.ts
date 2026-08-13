@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { composePlan, blockCompletion, projectedDate, minutesPerDayToRecover } from './plan';
+import {
+  composePlan,
+  blockCompletion,
+  projectedDate,
+  minutesPerDayToRecover,
+  phaseFor,
+  productionRatio,
+} from './plan';
 
 describe('composePlan', () => {
   it('totals exactly the daily budget on a normal day', () => {
@@ -73,6 +80,23 @@ describe('blockCompletion', () => {
       { type: 'cards' as const, label: 'Cards 2', minutes: 10 },
     ];
     expect(blockCompletion(blocks, { cards: 10 })).toEqual([true, false]);
+  });
+});
+
+describe('phase', () => {
+  it('derives phase from accumulated hours', () => {
+    expect(phaseFor(0)).toBe('foundation');
+    expect(phaseFor(69)).toBe('foundation');
+    expect(phaseFor(70)).toBe('output');
+    expect(phaseFor(139)).toBe('output');
+    expect(phaseFor(140)).toBe('pressure');
+  });
+
+  it('production ratio rises with phase', () => {
+    expect(productionRatio('foundation')).toBe(0.4);
+    expect(productionRatio('output')).toBe(0.6);
+    expect(productionRatio('pressure')).toBe(0.7);
+    expect(productionRatio('foundation')).toBeLessThan(productionRatio('pressure'));
   });
 });
 

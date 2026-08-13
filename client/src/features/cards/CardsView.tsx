@@ -3,6 +3,8 @@ import { scheduleCard } from '@seiscientas/shared';
 import { useQueue } from './useQueue';
 import { generateCards } from './generate';
 import { SwipeCard } from './SwipeCard';
+import { ProductionCard } from './ProductionCard';
+import { initCheckResolution } from './checks';
 import { putCard } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
@@ -21,6 +23,10 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
   const reducedMotion = useRef(prefersReducedMotion());
 
   useSessionTimer(userId, 'cards', profile.daily_minutes);
+
+  useEffect(() => {
+    initCheckResolution(userId);
+  }, [userId]);
 
   const current = queue[0] ?? null;
 
@@ -93,23 +99,36 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     <div className={pulse ? 'pulse' : ''}>
       <p className="queue-count mono">{queue.length} due</p>
       <div className="card-stage">
-        <SwipeCard
-          key={current.id}
-          card={current}
-          quietMode={profile.quiet_mode}
-          dialect={profile.dialect}
-          reducedMotion={reducedMotion.current}
-          onGrade={(g) => void grade(g)}
-        />
+        {current.direction === 'production' ? (
+          <ProductionCard
+            key={current.id}
+            card={current}
+            userId={userId}
+            quietMode={profile.quiet_mode}
+            dialect={profile.dialect}
+            onGrade={(g) => void grade(g)}
+          />
+        ) : (
+          <SwipeCard
+            key={current.id}
+            card={current}
+            quietMode={profile.quiet_mode}
+            dialect={profile.dialect}
+            reducedMotion={reducedMotion.current}
+            onGrade={(g) => void grade(g)}
+          />
+        )}
       </div>
-      <div className="grade-row">
-        <button className="btn" style={{ borderColor: 'var(--clay)' }} onClick={() => void grade('miss')}>
-          Missed it
-        </button>
-        <button className="btn" style={{ borderColor: 'var(--sage)' }} onClick={() => void grade('got')}>
-          Knew it
-        </button>
-      </div>
+      {current.direction === 'recognition' && (
+        <div className="grade-row">
+          <button className="btn" style={{ borderColor: 'var(--clay)' }} onClick={() => void grade('miss')}>
+            Missed it
+          </button>
+          <button className="btn" style={{ borderColor: 'var(--sage)' }} onClick={() => void grade('got')}>
+            Knew it
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { Card, CardsResponse } from '@seiscientas/shared';
+import { phaseFor, productionRatio } from '@seiscientas/shared';
 import { apiPost } from '../../lib/api';
 import { putCards } from '../../db/repo';
 import { db } from '../../db/dexie';
@@ -26,17 +27,13 @@ export async function generateCards(opts: {
     exclude: exclude.slice(-500),
   });
 
-  const cards: Card[] = res.cards.map((c) => ({
-    id: uuid(),
+  const base = (c: CardsResponse['cards'][number]): Omit<Card, 'id' | 'direction' | 'prompt' | 'answer'> => ({
     user_id: opts.userId,
-    direction: 'recognition',
     es: c.es,
     en: c.en,
     word: c.word,
     word_en: c.wordEn,
     note: c.note,
-    prompt: null,
-    answer: null,
     accepts: null,
     concept: null,
     source: 'generated',
@@ -45,7 +42,38 @@ export async function generateCards(opts: {
     seen: 0,
     deleted_at: null,
     updated_at: nowIso(),
+  });
+
+  const cards: Card[] = res.cards.map((c) => ({
+    ...base(c),
+    id: uuid(),
+    direction: 'recognition',
+    prompt: null,
+    answer: null,
   }));
+
+  // Production counterparts for a phase-derived share of the batch: the
+  // learner sees the English and must produce the Spanish. Automatic, not a
+  // setting (spec §6) — production rises with phase.
+  const totalMinutes = (
+    await db.sessions.where('at').aboveOrEqual('').and((s) => s.user_id === opts.userId).toArray()
+  ).reduce((sum, s) => sum + s.minutes, 0);
+  const ratio = productionRatio(phaseFor(totalMinutes / 60));
+  const productionCount = Math.round(res.cards.length * ratio);
+
+  for (const c of res.cards.slice(0, productionCount)) {
+    cards.push({
+      ...base(c),
+      id: uuid(),
+      direction: 'production',
+      prompt: c.en,
+      answer: c.es,
+      // Production is due a day later than its recognition twin, so the
+      // learner meets the word before being asked to produce it.
+      due: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+  }
+
   await putCards(cards);
   return cards.length;
 }

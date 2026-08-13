@@ -88,6 +88,29 @@ export function blockCompletion(
   });
 }
 
+// ---- learning phase ----
+// Derived from accumulated hours toward the 200h readiness target. Drives the
+// production-card ratio and (in step 8) which concepts unlock.
+
+export type LearningPhase = 'foundation' | 'output' | 'pressure';
+
+export function phaseFor(totalHours: number): LearningPhase {
+  if (totalHours < 70) return 'foundation';
+  if (totalHours < 140) return 'output';
+  return 'pressure';
+}
+
+/** Share of generated cards that get a production counterpart. Production
+ *  rises with phase — automatic, never a setting: given the choice the
+ *  learner picks recognition, because it's easier and feels like progress. */
+export function productionRatio(phase: LearningPhase): number {
+  switch (phase) {
+    case 'foundation': return 0.4;
+    case 'output': return 0.6;
+    case 'pressure': return 0.7;
+  }
+}
+
 export interface PaceInput {
   totalHours: number;
   targetHours: number; // 200 readiness

@@ -18,17 +18,10 @@ export function useQueue(userId: string): QueueState {
 
   const refresh = useCallback(async () => {
     const now = new Date().toISOString();
-    // MVP scope: recognition only — the single place production cards will
-    // unlock in step 7.
     const due = await db.cards
       .where('due')
       .belowOrEqual(now)
-      .and(
-        (c) =>
-          c.user_id === userId &&
-          c.deleted_at === null &&
-          c.direction === 'recognition',
-      )
+      .and((c) => c.user_id === userId && c.deleted_at === null)
       .sortBy('due');
     setQueue(due.slice(0, DAILY_QUEUE_CAP));
     setLoading(false);

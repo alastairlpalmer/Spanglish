@@ -1,10 +1,10 @@
 import type { CardsRequest } from '@seiscientas/shared';
 
-export function cardsSystemPrompt(): string {
+export function cardsSystemPrompt(count: number): string {
   return `You generate Spanish flashcards for a serious adult learner. Return ONLY a JSON object, no preamble, no markdown fences.
 
 Rules:
-- Exactly 8 cards.
+- Exactly ${count} cards.
 - Each card teaches ONE target word inside a natural, complete Spanish sentence. Never bare word pairs.
 - Sentences are level-appropriate but natural — real Spanish, not textbook Spanish.
 - The note is one short usage remark (register, common collocation, false-friend warning). No filler.

@@ -4,7 +4,7 @@ import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
 import { recordCall } from '../usage.js';
-import { anthropic, MODELS, responseText, parseJsonLoose } from '../anthropic.js';
+import { anthropic, MODELS, lastTextBlock, parseJsonLoose } from '../anthropic.js';
 import { articleSystemPrompt, articleUserPrompt } from '../prompts/article.js';
 import { mockArticle } from '../mock/fixtures.js';
 
@@ -30,8 +30,8 @@ export function registerArticleRoute(app: FastifyInstance): void {
     try {
       for (let i = 0; i <= MAX_RESUMES; i++) {
         const msg = await client.messages.create({
-          model: MODELS.cards,
-          max_tokens: 2000,
+          model: MODELS.article,
+          max_tokens: 3000,
           system: articleSystemPrompt(),
           tools: [{ type: 'web_search_20260209' as never, name: 'web_search', max_uses: 4 } as never],
           messages,
@@ -44,16 +44,19 @@ export function registerArticleRoute(app: FastifyInstance): void {
           continue;
         }
 
-        return articleResponseSchema.parse(parseJsonLoose(responseText(msg)));
+        // The final text block only — web search interleaves narration blocks.
+        return articleResponseSchema.parse(parseJsonLoose(lastTextBlock(msg)));
       }
+      req.log.error('article: exhausted pause_turn resumes');
       return reply.code(502).send({ error: 'article_failed' });
-    } catch {
+    } catch (err) {
+      req.log.error({ err }, 'article generation failed');
       return reply.code(502).send({ error: 'article_failed' });
     } finally {
       await recordCall({
         userId: req.userId,
         feature: 'article',
-        model: MODELS.cards,
+        model: MODELS.article,
         inputTokens: totalIn,
         outputTokens: totalOut,
       });

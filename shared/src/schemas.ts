@@ -8,6 +8,7 @@ export const cardsRequestSchema = z.object({
   topic: z.string().max(120).optional(),
   level: z.string(),
   dialect: z.string(),
+  count: z.number().int().min(8).max(30).default(20),
   exclude: z.array(z.string()).max(500).default([]),
 });
 export const generatedCardSchema = z.object({
@@ -18,7 +19,7 @@ export const generatedCardSchema = z.object({
   note: z.string(),
 });
 export const cardsResponseSchema = z.object({
-  cards: z.array(generatedCardSchema).length(8),
+  cards: z.array(generatedCardSchema).min(5).max(30),
 });
 
 // ---- /api/ai/check ----

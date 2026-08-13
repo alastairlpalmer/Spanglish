@@ -24,6 +24,7 @@ export async function generateCards(opts: {
     topic: opts.topic,
     level: opts.level,
     dialect: opts.dialect,
+    count: 20,
     exclude: exclude.slice(-500),
   });
 

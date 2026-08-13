@@ -20,6 +20,10 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [pulse, setPulse] = useState(false);
+  // Review runs in sets of 10: a natural breath every ten cards, with the
+  // remaining count as the honest continue signal.
+  const [gradedInSet, setGradedInSet] = useState(0);
+  const [setBreak, setSetBreak] = useState(false);
   const reducedMotion = useRef(prefersReducedMotion());
 
   useSessionTimer(userId, 'cards', profile.daily_minutes);
@@ -35,6 +39,9 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     const result = scheduleCard(current, g, new Date());
     await putCard({ ...current, ...result });
     setPulse(true); // no Vibration API on iOS Safari — 40ms visual pulse instead
+    const graded = gradedInSet + 1;
+    setGradedInSet(graded);
+    if (graded % 10 === 0) setSetBreak(true);
     await refresh();
   }
 
@@ -67,6 +74,22 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
 
   if (loading) return <p className="muted">loading queue</p>;
 
+  if (setBreak && current) {
+    return (
+      <div className="stack">
+        <div className="panel" style={{ textAlign: 'center' }}>
+          <p className="mono">{gradedInSet} reviewed</p>
+          <p className="muted" style={{ fontSize: 14 }}>
+            {queue.length} still due
+          </p>
+        </div>
+        <button className="btn primary block" onClick={() => setSetBreak(false)}>
+          Next 10
+        </button>
+      </div>
+    );
+  }
+
   if (!current) {
     return (
       <div className="stack">
@@ -82,7 +105,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
               placeholder="Topic, or leave blank for high-frequency words"
             />
             <button className="btn primary block" disabled={generating} onClick={() => void generate()}>
-              {generating ? 'finding words' : 'Generate 8 cards'}
+              {generating ? 'finding words' : 'Generate 20 cards'}
             </button>
             {genError && <p className="error-line">{genError}</p>}
           </div>

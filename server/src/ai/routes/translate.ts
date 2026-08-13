@@ -18,15 +18,15 @@ export function registerTranslateRoute(app: FastifyInstance): void {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       const msg = await anthropic().messages.create({
-        model: MODELS.review,
-        max_tokens: 400,
+        model: MODELS.translate,
+        max_tokens: 600,
         system: translateSystemPrompt(),
         messages: [{ role: 'user', content: translateUserPrompt(parsed.data) }],
       });
       await recordCall({
         userId: req.userId,
         feature: 'translate',
-        model: MODELS.review,
+        model: MODELS.translate,
         inputTokens: msg.usage.input_tokens,
         outputTokens: msg.usage.output_tokens,
       });

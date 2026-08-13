@@ -20,8 +20,8 @@ export function registerCardsRoute(app: FastifyInstance): void {
     for (let attempt = 0; attempt < 2; attempt++) {
       const msg = await anthropic().messages.create({
         model: MODELS.cards,
-        max_tokens: 2000,
-        system: cardsSystemPrompt(),
+        max_tokens: 4000,
+        system: cardsSystemPrompt(body.count),
         messages: [{ role: 'user', content: cardsUserPrompt(body) }],
       });
       await recordCall({

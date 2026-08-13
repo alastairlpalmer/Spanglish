@@ -34,6 +34,26 @@ export function registerTalkRoute(app: FastifyInstance): void {
     }
 
     try {
+      // Talk is the dominant cost: full history every turn. Two mitigations —
+      // truncate to the recent window (the tutor doesn't need turn 1 to keep
+      // a conversation going), and put a cache breakpoint on the last message
+      // so each turn reads the prior prefix at ~0.1x instead of full price.
+      const recent = body.messages.slice(-24);
+      const cachedMessages = recent.map((m, i) =>
+        i === recent.length - 1
+          ? {
+              role: m.role,
+              content: [
+                {
+                  type: 'text' as const,
+                  text: m.content,
+                  cache_control: { type: 'ephemeral' as const },
+                },
+              ],
+            }
+          : { role: m.role, content: m.content },
+      );
+
       const stream = anthropic().messages.stream({
         model: MODELS.talk,
         max_tokens: 400,
@@ -46,7 +66,7 @@ export function registerTalkRoute(app: FastifyInstance): void {
             cache_control: { type: 'ephemeral' },
           },
         ],
-        messages: body.messages,
+        messages: cachedMessages,
       });
 
       stream.on('text', (delta) => {

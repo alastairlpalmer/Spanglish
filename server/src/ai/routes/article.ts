@@ -34,7 +34,7 @@ export function registerArticleRoute(app: FastifyInstance): void {
       const msg = await anthropic().messages.create({
         model: MODELS.article,
         max_tokens: 1500,
-        system: articleSystemPrompt(),
+        system: articleSystemPrompt(parsed.data.level),
         messages: [{ role: 'user', content: articleUserPrompt(parsed.data, items) }],
       });
       await recordCall({

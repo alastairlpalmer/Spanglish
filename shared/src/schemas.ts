@@ -85,7 +85,7 @@ export const articleResponseSchema = z.object({
   headline: z.string().min(1),
   body: z.string().min(50),
   source: z.string().min(1),
-  gloss: z.array(glossEntrySchema).min(6).max(20),
+  gloss: z.array(glossEntrySchema).min(6).max(40),
 });
 
 // ---- /api/ai/translate (Read's translation practice) ----

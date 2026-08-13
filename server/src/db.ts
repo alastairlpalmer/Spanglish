@@ -11,11 +11,14 @@ let pool: pg.Pool | null = null;
 export function db(): pg.Pool | null {
   if (!env.hasDb) return null;
   if (!pool) {
+    // Railway's private network (*.railway.internal) and localhost speak
+    // plain TCP; only external/public hosts need TLS (self-signed chain).
+    const noSsl =
+      env.DATABASE_URL!.includes('localhost') ||
+      env.DATABASE_URL!.includes('.railway.internal');
     pool = new pg.Pool({
       connectionString: env.DATABASE_URL,
-      // Railway Postgres requires TLS from outside its private network; the
-      // proxy uses a self-signed chain.
-      ssl: env.DATABASE_URL!.includes('localhost') ? undefined : { rejectUnauthorized: false },
+      ssl: noSsl ? undefined : { rejectUnauthorized: false },
       max: 5,
     });
   }

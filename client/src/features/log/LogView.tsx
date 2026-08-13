@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ErrorConcept, Session, SessionType, TargetHistoryEntry } from '@seiscientas/shared';
+import type { ConceptSlug, Session, SessionType, TargetHistoryEntry } from '@seiscientas/shared';
 import { projectedDate } from '@seiscientas/shared';
 import { db } from '../../db/dexie';
 import { logSession } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
 import { Sheet } from '../../components/Sheet';
+import { ProgressMap } from './ProgressMap';
+import { DrillView } from '../drill/DrillView';
 import { formatDate, localDateKey, nowIso, startOfLocalDayDate } from '../../lib/time';
 
 const READINESS_HOURS = 200;
@@ -23,7 +25,7 @@ const MANUAL_TYPES: Array<{ value: SessionType; label: string }> = [
 export function LogView({ userId }: { userId: string }): JSX.Element {
   const { profile, update } = useProfile();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [concepts, setConcepts] = useState<ErrorConcept[]>([]);
+  const [drilling, setDrilling] = useState<ConceptSlug | null>(null);
   const [logSheet, setLogSheet] = useState(false);
   const [dateSheet, setDateSheet] = useState(false);
   const [manualType, setManualType] = useState<SessionType>('input');
@@ -37,11 +39,6 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
       .and((s) => s.user_id === userId)
       .sortBy('at');
     setSessions(all);
-    const ec = await db.error_concepts
-      .where('[user_id+concept]')
-      .between([userId, ''], [userId, '￿'])
-      .toArray();
-    setConcepts(ec.filter((c) => c.count > 0).sort((a, b) => b.count - a.count));
   }, [userId]);
 
   useEffect(() => {
@@ -75,6 +72,19 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
 
   const slip = cumulativeSlip(profile.target_history);
   const bars = sessions.slice(-MAX_BARS);
+
+  if (drilling) {
+    return (
+      <DrillView
+        userId={userId}
+        concept={drilling}
+        onClose={() => {
+          setDrilling(null);
+          void reload();
+        }}
+      />
+    );
+  }
 
   async function saveManual(): Promise<void> {
     const minutes = parseInt(manualMinutes, 10);
@@ -185,18 +195,8 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
         {sessions.length === 0 && <p className="muted">Nothing logged yet.</p>}
       </div>
 
-      {/* error ledger (progress map arrives in step 8) */}
-      {concepts.length > 0 && (
-        <div className="panel stack" style={{ gap: 4 }}>
-          <p className="eyebrow">open concepts</p>
-          {concepts.map((c) => (
-            <div className="row" key={c.concept} style={{ minHeight: 32, padding: '2px 0' }}>
-              <span className="muted">{c.concept}</span>
-              <span className="mono">{c.count}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* progress map: the error ledger pointed forwards */}
+      <ProgressMap userId={userId} onDrill={setDrilling} />
 
       {logSheet && (
         <Sheet title="Log time" onClose={() => setLogSheet(false)}>

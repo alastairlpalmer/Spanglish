@@ -114,6 +114,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
             card={current}
             quietMode={profile.quiet_mode}
             dialect={profile.dialect}
+            wordFirst={['A0', 'A1'].includes(profile.level)}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />

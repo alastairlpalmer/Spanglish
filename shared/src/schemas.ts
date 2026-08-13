@@ -74,6 +74,7 @@ export const articleRequestSchema = z.object({
   topic: z.string().max(120).optional(),
   level: z.string(),
   country: z.string().nullable(),
+  weakConcepts: z.array(z.string()).max(25).default([]),
 });
 export const glossEntrySchema = z.object({
   word: z.string().min(1),

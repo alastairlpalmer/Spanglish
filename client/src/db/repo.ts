@@ -114,6 +114,23 @@ export async function recordError(opts: {
   requestSync();
 }
 
+/** A perfect 8/8 drill run. Errors reset the counter via recordError. */
+export async function recordCleanRun(userId: string, concept: ConceptSlug): Promise<void> {
+  const now = nowIso();
+  const existing = await db.error_concepts.get([userId, concept]);
+  await db.error_concepts.put({
+    user_id: userId,
+    concept,
+    count: existing?.count ?? 0,
+    clean_runs: (existing?.clean_runs ?? 0) + 1,
+    first_seen: existing?.first_seen ?? null,
+    last_seen: existing?.last_seen ?? null,
+    updated_at: now,
+    dirty: 1,
+  });
+  requestSync();
+}
+
 export async function savePlan(plan: Omit<Plan, 'updated_at'>): Promise<void> {
   await db.plans.put({ ...plan, updated_at: nowIso(), dirty: 1 });
   requestSync();

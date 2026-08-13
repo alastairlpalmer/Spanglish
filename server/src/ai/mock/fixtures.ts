@@ -5,6 +5,7 @@ import type {
   ArticleResponse,
   CardsResponse,
   CheckResponse,
+  DrillResponse,
   ReviewResponse,
   TranslateResponse,
 } from '@seiscientas/shared';
@@ -32,6 +33,19 @@ export const mockCheckWrong: CheckResponse = {
   correct: false,
   issue: 'You used ser for a temporary state — location and mood take estar.',
   concept: 'ser-vs-estar',
+};
+
+export const mockDrill: DrillResponse = {
+  cards: [
+    { prompt: 'I am tired today.', answer: 'Estoy cansado hoy.', accepts: ['Hoy estoy cansado.'] },
+    { prompt: 'She is a doctor.', answer: 'Es médica.', accepts: ['Ella es médica.', 'Ella es doctora.'] },
+    { prompt: 'The coffee is cold.', answer: 'El café está frío.', accepts: [] },
+    { prompt: 'We are in the kitchen.', answer: 'Estamos en la cocina.', accepts: [] },
+    { prompt: 'My brother is very tall.', answer: 'Mi hermano es muy alto.', accepts: [] },
+    { prompt: 'The party is at my house.', answer: 'La fiesta es en mi casa.', accepts: [] },
+    { prompt: 'You look beautiful tonight.', answer: 'Estás guapa esta noche.', accepts: ['Estás muy guapa esta noche.'] },
+    { prompt: 'The soup is delicious (right now).', answer: 'La sopa está riquísima.', accepts: ['La sopa está deliciosa.'] },
+  ],
 };
 
 export const mockTalkReplies: string[] = [

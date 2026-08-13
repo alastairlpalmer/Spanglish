@@ -8,6 +8,7 @@ import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { speak, stopSpeaking, synthesisAvailable } from '../../speech/synthesis';
 import { recordReviewErrors } from '../../db/repo';
+import { weakConcepts } from '../drill/weak';
 import { ReviewStack } from './ReviewStack';
 
 const SCENARIOS = [
@@ -65,12 +66,15 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
       localStorage.setItem(RINGER_NOTE_KEY, '1');
     }
 
+    // Steer conversation toward contexts that force the learner's weak
+    // concepts. Never announced (the tutor prompt forbids mentioning it).
+    const weak = await weakConcepts(userId, 5);
     const body: TalkRequest = {
       messages: next,
       scenario,
       dialect: profile.dialect,
       level: profile.level,
-      weakConcepts: [], // step 9 seam: cross-surface steering
+      weakConcepts: weak,
     };
 
     let acc = '';

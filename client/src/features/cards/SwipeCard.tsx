@@ -15,12 +15,16 @@ export function SwipeCard({
   card,
   quietMode,
   dialect,
+  wordFirst,
   reducedMotion,
   onGrade,
 }: {
   card: Card;
   quietMode: boolean;
   dialect: string;
+  /** Beginner presentation: the word alone on the front, the sentence as
+   *  reinforcement on reveal. Raw vocab drilling without bare word pairs. */
+  wordFirst: boolean;
   reducedMotion: boolean;
   onGrade: (grade: 'got' | 'miss') => void;
 }): JSX.Element {
@@ -85,23 +89,29 @@ export function SwipeCard({
         className="card-wash"
         style={{ background: washColor, opacity: dragging.current ? washOpacity : 0 }}
       />
-      <p className="es" lang="es">
-        {idx >= 0 ? (
-          <>
-            {es.slice(0, idx)}
-            <span className="target">{es.slice(idx, idx + word.length)}</span>
-            {es.slice(idx + word.length)}
-          </>
-        ) : (
-          es
-        )}
-      </p>
+      {wordFirst ? (
+        <p className="es" lang="es" style={{ fontSize: 32 }}>
+          <span className="target">{word || es}</span>
+        </p>
+      ) : (
+        <p className="es" lang="es">
+          {idx >= 0 ? (
+            <>
+              {es.slice(0, idx)}
+              <span className="target">{es.slice(idx, idx + word.length)}</span>
+              {es.slice(idx + word.length)}
+            </>
+          ) : (
+            es
+          )}
+        </p>
+      )}
       {!quietMode && (
         <button
           className="btn quiet"
           onClick={(e) => {
             e.stopPropagation();
-            speak(es, localeForDialect(dialect));
+            speak(wordFirst ? word || es : es, localeForDialect(dialect));
           }}
         >
           listen
@@ -115,7 +125,16 @@ export function SwipeCard({
             </span>{' '}
             — {card.word_en}
           </p>
-          <p>{card.en}</p>
+          {wordFirst ? (
+            <>
+              <p lang="es" style={{ fontSize: 15 }}>
+                {es}
+              </p>
+              <p className="note">{card.en}</p>
+            </>
+          ) : (
+            <p>{card.en}</p>
+          )}
           {card.note && <p className="note">{card.note}</p>}
         </div>
       ) : (

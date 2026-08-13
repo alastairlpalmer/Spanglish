@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { ConceptSlug } from '@seiscientas/shared';
 import { useToday } from './useToday';
 import { useProfile } from '../../shell/ProfileContext';
 import { Ring } from '../../components/Ring';
 import { ReadView } from '../read/ReadView';
+import { DrillView } from '../drill/DrillView';
+import { weakConcepts } from '../drill/weak';
 import type { Tab } from '../../shell/TabBar';
 import { formatDate } from '../../lib/time';
 
@@ -23,6 +26,27 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   const today = useToday(userId);
   const [keepGoing, setKeepGoing] = useState(false);
   const [reading, setReading] = useState(false);
+  const [drillTarget, setDrillTarget] = useState<ConceptSlug | null>(null);
+  const [drilling, setDrilling] = useState(false);
+
+  // The drill block targets the learner's weakest concept — grammar arrives
+  // as a scheduled task, never as a menu they have to choose to visit.
+  useEffect(() => {
+    void weakConcepts(userId, 1).then((w) => setDrillTarget(w[0] ?? null));
+  }, [userId, today.minutesToday]);
+
+  if (drilling && drillTarget) {
+    return (
+      <DrillView
+        userId={userId}
+        concept={drillTarget}
+        onClose={() => {
+          setDrilling(false);
+          void today.refresh();
+        }}
+      />
+    );
+  }
 
   if (reading) {
     return (
@@ -52,8 +76,11 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   }
 
   function goFor(type: string): void {
-    if (type === 'cards' || type === 'drill') onGo('cards');
-    else if (type === 'talk') onGo('talk');
+    if (type === 'cards') onGo('cards');
+    else if (type === 'drill') {
+      if (drillTarget) setDrilling(true);
+      else onGo('cards'); // nothing to drill yet — cards are the best use of the time
+    } else if (type === 'talk') onGo('talk');
     else if (type === 'read') setReading(true);
   }
 
@@ -114,12 +141,10 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
               key={`${block.type}-${i}`}
               className={`plan-block ${isNext ? 'next' : ''} ${isDone ? 'done' : ''}`}
               onClick={() => goFor(block.type)}
-              disabled={block.type === 'drill'}
             >
               <span className="plan-mark">{isDone ? '✓' : '○'}</span>
               <span className="plan-label">
-                {block.label}
-                {block.type === 'drill' && <span className="muted"> — soon</span>}
+                {block.type === 'drill' && drillTarget ? `Drill: ${drillTarget}` : block.label}
               </span>
               <span className="plan-minutes">{block.minutes} min</span>
             </button>

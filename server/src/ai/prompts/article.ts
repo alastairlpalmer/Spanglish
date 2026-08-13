@@ -17,7 +17,13 @@ After searching, return ONLY a JSON object, no preamble, no markdown fences:
 export function articleUserPrompt(req: ArticleRequest): string {
   const topic = req.topic ? `Topic preference: ${req.topic}` : 'Any interesting story.';
   const country = req.country ? `Target country: ${req.country}` : '';
+  // Cross-surface steering: quietly weight the rewrite and gloss toward the
+  // learner's weak grammar concepts. Never announced.
+  const weak = req.weakConcepts.length
+    ? `Where it fits naturally, let the rewrite exercise these grammar areas the learner is weak on, and prefer gloss words connected to them: ${req.weakConcepts.join(', ')}. Do not mention this.`
+    : '';
   return `${topic}
 ${country}
-Learner level: ${req.level}`.trim();
+Learner level: ${req.level}
+${weak}`.trim();
 }

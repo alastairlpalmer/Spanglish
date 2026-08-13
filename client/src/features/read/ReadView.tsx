@@ -9,16 +9,18 @@ import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
 import { speak, stopSpeaking } from '../../speech/synthesis';
 import { localeForDialect } from '../../speech/recognition';
+import { weakConcepts } from '../drill/weak';
 
 const KEEP_ARTICLES = 2;
 
-async function fetchArticle(profile: {
-  level: string;
-  country: string | null;
-}): Promise<CachedArticle> {
+async function fetchArticle(
+  profile: { level: string; country: string | null },
+  weak: string[],
+): Promise<CachedArticle> {
   const res = await apiPost<ArticleResponse>('/api/ai/article', {
     level: profile.level,
     country: profile.country,
+    weakConcepts: weak,
   });
   const article: CachedArticle = {
     id: uuid(),
@@ -104,7 +106,7 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
       setLoading(false);
     } else if (navigator.onLine) {
       try {
-        setArticle(await fetchArticle(profile));
+        setArticle(await fetchArticle(profile, await weakConcepts(userId, 5)));
       } catch (e) {
         if (e instanceof ApiError && e.code === 'budget_paused')
           setError('AI features paused until tomorrow.');
@@ -132,7 +134,7 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
       const unreadCount = await db.articles.filter((a) => !a.read_at).count();
       if (unreadCount <= 1) {
         try {
-          await fetchArticle(profile);
+          await fetchArticle(profile, await weakConcepts(userId, 5));
         } catch {
           // prefetch is best-effort
         }

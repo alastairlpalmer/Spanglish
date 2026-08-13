@@ -1,0 +1,32 @@
+:root {
+  /* palette — spec §14 */
+  --ground: #10161f;
+  --surface: #182231;
+  --surface2: #212e40;
+  --line: #2e3e52;
+  --cobalt: #3d6bff;
+  --ochre: #e9a23b;
+  --clay: #d9614a;
+  --sage: #5fbf97;
+  --paper: #edf1f6;
+  --muted: #8397ae;
+
+  /* reading room (step 6 seam) */
+  --reading-ground: #e9edf3;
+  --reading-ink: #10161f;
+
+  /* type */
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* shape */
+  --radius-card: 14px;
+  --radius-button: 10px;
+  --radius-chip: 999px;
+
+  /* layout */
+  --max-col: 560px;
+  --nav-height: 56px;
+  --touch: 44px;
+}

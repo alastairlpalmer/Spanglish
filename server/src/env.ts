@@ -9,6 +9,15 @@ const envSchema = z.object({
   DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().default(2_000_000),
   AI_MOCK: z.string().optional(),
   PORT: z.coerce.number().int().default(3000),
+  // Per-feature model overrides — escape hatches for cost/quality tuning
+  // without a code change. Unset = the defaults in ai/anthropic.ts.
+  MODEL_CHECK: z.string().optional(),
+  MODEL_CARDS: z.string().optional(),
+  MODEL_TALK: z.string().optional(),
+  MODEL_REVIEW: z.string().optional(),
+  MODEL_DRILL: z.string().optional(),
+  MODEL_TRANSLATE: z.string().optional(),
+  MODEL_ARTICLE: z.string().optional(),
 });
 
 const parsed = envSchema.parse(process.env);

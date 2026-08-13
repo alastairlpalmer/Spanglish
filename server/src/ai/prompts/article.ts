@@ -1,29 +1,33 @@
 import type { ArticleRequest } from '@seiscientas/shared';
+import type { NewsItem } from '../news.js';
 
 export function articleSystemPrompt(): string {
-  return `You prepare one short news reading for a Spanish learner. Use web search to find ONE real news story from the last few days, then rewrite it at the learner's level.
+  return `You prepare one short news reading for a Spanish learner from real headlines provided to you. Return ONLY a JSON object, no preamble, no markdown fences.
 
 Rules:
-- The story must be real and current. Real facts only — never invent details, names, numbers, or quotes. If a detail didn't appear in a source, leave it out.
-- Weight the search toward the learner's target country when one is given.
-- Rewrite in 130–170 words of natural Spanish: short sentences, level-appropriate, but real Spanish rather than textbook Spanish.
-- "source" is the publication name (e.g. "El Universal").
-- The gloss covers 12–16 of the harder words in the body, each with a short English meaning. Every gloss word must appear in the body exactly as written.
+- Pick the single most interesting story from the provided items (items about the same event may be combined).
+- Write 90–170 words of natural Spanish at the learner's level: short sentences, but real Spanish rather than textbook Spanish.
+- STRICT FACTS: use only facts stated in the provided titles and snippets. Never invent names, numbers, quotes, causes, or outcomes. If the material is thin, write a shorter piece rather than padding with invented detail.
+- "source" is the publication name of the chosen item.
+- The gloss covers 10–16 of the harder words in the body, each with a short English meaning. Every gloss word must appear in the body exactly as written.
 
-After searching, return ONLY a JSON object, no preamble, no markdown fences:
-{"headline":"<Spanish headline>","body":"<130-170 word Spanish body>","source":"<publication>","gloss":[{"word":"<word as it appears>","meaning":"<short English meaning>"}]}`;
+Output shape:
+{"headline":"<Spanish headline>","body":"<90-170 word Spanish body>","source":"<publication>","gloss":[{"word":"<word as it appears>","meaning":"<short English meaning>"}]}`;
 }
 
-export function articleUserPrompt(req: ArticleRequest): string {
-  const topic = req.topic ? `Topic preference: ${req.topic}` : 'Any interesting story.';
-  const country = req.country ? `Target country: ${req.country}` : '';
-  // Cross-surface steering: quietly weight the rewrite and gloss toward the
-  // learner's weak grammar concepts. Never announced.
+export function articleUserPrompt(req: ArticleRequest, items: NewsItem[]): string {
+  const list = items
+    .map(
+      (it, i) =>
+        `${i + 1}. [${it.source}] ${it.title}${it.snippet ? ` — ${it.snippet}` : ''} (${it.date})`,
+    )
+    .join('\n');
   const weak = req.weakConcepts.length
     ? `Where it fits naturally, let the rewrite exercise these grammar areas the learner is weak on, and prefer gloss words connected to them: ${req.weakConcepts.join(', ')}. Do not mention this.`
     : '';
-  return `${topic}
-${country}
+  return `Today's headlines:
+${list}
+
 Learner level: ${req.level}
 ${weak}`.trim();
 }

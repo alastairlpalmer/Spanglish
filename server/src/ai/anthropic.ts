@@ -1,18 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../env.js';
 
-// Cost posture: Haiku 4.5 everywhere the call is frequent — at $1/$5 per MTok
-// it is ~3-5x cheaper than Sonnet and more than good enough for short
-// tutoring turns, grading, and generation. The article keeps Sonnet: it runs
-// once a day and needs the newer web-search tool variant.
+// Cost posture: Haiku 4.5 everywhere — at $1/$5 per MTok it is ~3-5x cheaper
+// than Sonnet and more than good enough for short tutoring turns, grading,
+// generation, and rewriting RSS headlines (the article no longer needs the
+// web-search tool). MODEL_* env vars override per feature without a deploy.
+const HAIKU = 'claude-haiku-4-5-20251001';
+
 export const MODELS = {
-  check: 'claude-haiku-4-5-20251001',
-  cards: 'claude-haiku-4-5-20251001',
-  talk: 'claude-haiku-4-5-20251001',
-  review: 'claude-haiku-4-5-20251001',
-  drill: 'claude-haiku-4-5-20251001',
-  translate: 'claude-haiku-4-5-20251001',
-  article: 'claude-sonnet-5',
+  check: env.MODEL_CHECK ?? HAIKU,
+  cards: env.MODEL_CARDS ?? HAIKU,
+  talk: env.MODEL_TALK ?? HAIKU,
+  review: env.MODEL_REVIEW ?? HAIKU,
+  drill: env.MODEL_DRILL ?? HAIKU,
+  translate: env.MODEL_TRANSLATE ?? HAIKU,
+  article: env.MODEL_ARTICLE ?? HAIKU,
 } as const;
 
 // USD per million tokens. Verify against platform.claude.com pricing docs

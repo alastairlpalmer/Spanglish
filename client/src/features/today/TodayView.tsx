@@ -22,7 +22,7 @@ function weekKey(): string {
 }
 
 export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) => void }): JSX.Element {
-  const { profile } = useProfile();
+  const { profile, update: profileUpdate } = useProfile();
   const today = useToday(userId);
   const [keepGoing, setKeepGoing] = useState(false);
   const [reading, setReading] = useState(false);
@@ -34,6 +34,18 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   useEffect(() => {
     void weakConcepts(userId, 1).then((w) => setDrillTarget(w[0] ?? null));
   }, [userId, today.minutesToday]);
+
+  // One conversion prompt, once (spec §10a): an intended date within 30 days
+  // with nothing booked. Never asked again, whatever the answer.
+  const daysToTarget = profile.target_date
+    ? Math.round((new Date(profile.target_date).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const showConversion =
+    profile.target_kind === 'intended' &&
+    !profile.converted_prompt_shown &&
+    daysToTarget !== null &&
+    daysToTarget >= 0 &&
+    daysToTarget <= 30;
 
   if (drilling && drillTarget) {
     return (
@@ -109,6 +121,33 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
 
   return (
     <div className="stack">
+      {showConversion && (
+        <div className="panel stack">
+          <p style={{ fontSize: 14 }}>
+            Your intended date is {daysToTarget} days out and nothing is booked. Booked flights or
+            a registered exam make the date real.
+          </p>
+          <div className="row" style={{ gap: 8, padding: 0 }}>
+            <button
+              className="btn"
+              style={{ flex: 1 }}
+              onClick={() =>
+                void profileUpdate({ target_kind: 'booked', converted_prompt_shown: true })
+              }
+            >
+              It's booked
+            </button>
+            <button
+              className="btn quiet"
+              style={{ flex: 1 }}
+              onClick={() => void profileUpdate({ converted_prompt_shown: true })}
+            >
+              Not yet
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="panel ring-wrap">
         <Ring minutes={today.minutesToday} target={profile.daily_minutes} />
         <div>

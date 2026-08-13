@@ -94,6 +94,18 @@ export const translateRequestSchema = z.object({
 });
 export const translateResponseSchema = z.object({
   feedback: z.string().min(1),
+  // Comprehension errors, classified into the closed taxonomy so they can
+  // feed the ledger (spec §7).
+  errors: z
+    .array(
+      z.object({
+        wrong: z.string(),
+        right: z.string(),
+        why: z.string(),
+        concept: conceptSchema,
+      }),
+    )
+    .default([]),
 });
 
 // ---- /api/ai/drill (stub for MVP; schema fixed now so step 8 is additive) ----

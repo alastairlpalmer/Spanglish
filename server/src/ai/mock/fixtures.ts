@@ -80,6 +80,14 @@ export const mockArticle: ArticleResponse = {
 export const mockTranslate: TranslateResponse = {
   feedback:
     'You missed "la mitad del tiempo" — it means half the time, not "less time". "Se quejan del precio" is complain about the price; you wrote "worry about", which is softer than the Spanish. "En cambio" marks contrast (on the other hand) and you dropped it, so your version loses the shopkeepers-versus-residents structure. The rest carries the meaning accurately.',
+  errors: [
+    {
+      wrong: 'read "tomaba" as a completed one-off action',
+      right: 'the imperfect "tomaba" describes what the journey used to take',
+      why: 'The imperfect marks ongoing or habitual past, not a single event.',
+      concept: 'preterite-vs-imperfect',
+    },
+  ],
 };
 
 export const mockReview: ReviewResponse = {

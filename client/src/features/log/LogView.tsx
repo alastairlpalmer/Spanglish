@@ -6,6 +6,7 @@ import { logSession } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
 import { Sheet } from '../../components/Sheet';
 import { ProgressMap } from './ProgressMap';
+import { SettingsSheet } from './SettingsSheet';
 import { DrillView } from '../drill/DrillView';
 import { formatDate, localDateKey, nowIso, startOfLocalDayDate } from '../../lib/time';
 
@@ -28,6 +29,7 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
   const [drilling, setDrilling] = useState<ConceptSlug | null>(null);
   const [logSheet, setLogSheet] = useState(false);
   const [dateSheet, setDateSheet] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualType, setManualType] = useState<SessionType>('input');
   const [manualMinutes, setManualMinutes] = useState('30');
   const [newDate, setNewDate] = useState(profile.target_date ?? '');
@@ -197,6 +199,12 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
 
       {/* progress map: the error ledger pointed forwards */}
       <ProgressMap userId={userId} onDrill={setDrilling} />
+
+      <button className="btn quiet block" onClick={() => setSettingsOpen(true)}>
+        settings
+      </button>
+
+      {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
 
       {logSheet && (
         <Sheet title="Log time" onClose={() => setLogSheet(false)}>

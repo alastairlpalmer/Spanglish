@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { translateRequestSchema, translateResponseSchema } from '@seiscientas/shared';
+import { translateRequestSchema, translateResponseSchema, coerceConcept } from '@seiscientas/shared';
 import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
@@ -31,7 +31,11 @@ export function registerTranslateRoute(app: FastifyInstance): void {
         outputTokens: msg.usage.output_tokens,
       });
       try {
-        return translateResponseSchema.parse(parseJsonLoose(responseText(msg)));
+        const raw = parseJsonLoose(responseText(msg)) as { errors?: Array<Record<string, unknown>> };
+        if (Array.isArray(raw?.errors)) {
+          for (const e of raw.errors) e.concept = coerceConcept(String(e.concept ?? ''));
+        }
+        return translateResponseSchema.parse(raw);
       } catch {
         if (attempt === 1) return reply.code(502).send({ error: 'translate_failed' });
       }

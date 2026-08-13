@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ArticleResponse, GlossEntry } from '@seiscientas/shared';
+import type { ArticleResponse, GlossEntry, TranslateResponse } from '@seiscientas/shared';
 import { db, type CachedArticle } from '../../db/dexie';
-import { putCard } from '../../db/repo';
+import { putCard, recordError } from '../../db/repo';
 import { apiPost, ApiError } from '../../lib/api';
 import { uuid } from '../../lib/id';
 import { nowIso } from '../../lib/time';
@@ -173,11 +173,21 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await apiPost<{ feedback: string }>('/api/ai/translate', {
+      const res = await apiPost<TranslateResponse>('/api/ai/translate', {
         body: article.body,
         attempt: attempt.trim(),
       });
       setFeedback(res.feedback);
+      // Comprehension errors feed the ledger like any other error.
+      for (const e of res.errors) {
+        await recordError({
+          userId,
+          concept: e.concept,
+          wrong: e.wrong,
+          right: e.right,
+          why: e.why,
+        });
+      }
     } catch (e) {
       if (e instanceof ApiError && e.code === 'budget_paused')
         setFeedback('AI features paused until tomorrow.');

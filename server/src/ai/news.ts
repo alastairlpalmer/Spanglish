@@ -73,7 +73,7 @@ function tag(block: string, name: string): string {
   return m ? decodeEntities(m[1]!.replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1')) : '';
 }
 
-export function parseFeed(xml: string, limit = 10): NewsItem[] {
+export function parseFeed(xml: string, limit = 10, defaultSource = 'Google News'): NewsItem[] {
   const items: NewsItem[] = [];
   const blocks = xml.match(/<item>[\s\S]*?<\/item>/gi) ?? [];
   for (const block of blocks.slice(0, limit)) {
@@ -86,25 +86,55 @@ export function parseFeed(xml: string, limit = 10): NewsItem[] {
         : rawTitle;
     const snippet = tag(block, 'description');
     const date = tag(block, 'pubDate');
-    if (title) items.push({ title, snippet, source: source || 'Google News', date });
+    if (title) items.push({ title, snippet, source: source || defaultSource, date });
   }
   return items;
 }
+
+async function fetchFeed(url: string, defaultSource: string): Promise<NewsItem[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+        accept: 'application/rss+xml, application/xml, text/xml, */*',
+      },
+    });
+    if (!res.ok) throw new Error(`feed ${res.status}`);
+    return parseFeed(await res.text(), 10, defaultSource);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Google sometimes refuses datacenter IPs. These direct publisher feeds are
+// the fallback — always-on Spanish news, no gatekeeping.
+const FALLBACK_FEEDS = [
+  { url: 'https://feeds.bbci.co.uk/mundo/rss.xml', source: 'BBC Mundo' },
+  { url: 'https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada', source: 'El País' },
+  { url: 'https://es.euronews.com/rss', source: 'Euronews' },
+];
 
 export async function fetchNews(
   country: string | null,
   topic: string | undefined,
 ): Promise<NewsItem[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(feedUrl(country, topic), {
-      signal: controller.signal,
-      headers: { 'user-agent': 'Mozilla/5.0 (seiscientas news reader)' },
-    });
-    if (!res.ok) throw new Error(`feed ${res.status}`);
-    return parseFeed(await res.text());
-  } finally {
-    clearTimeout(timer);
+    const items = await fetchFeed(feedUrl(country, topic), 'Google News');
+    if (items.length > 0) return items;
+  } catch {
+    // fall through to the direct feeds
   }
+  for (const feed of FALLBACK_FEEDS) {
+    try {
+      const items = await fetchFeed(feed.url, feed.source);
+      if (items.length > 0) return items;
+    } catch {
+      // try the next one
+    }
+  }
+  throw new Error('all news feeds failed');
 }

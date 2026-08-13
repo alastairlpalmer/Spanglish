@@ -71,10 +71,18 @@
   color: var(--ochre);
 }
 
-/* reading room rendered inside the Read tab: leave the nav reachable */
+/* Reading room rendered inside the Read tab: an in-flow block below the
+   segment chips rather than a fixed overlay, so the chips and nav stay
+   visible and the page scrolls normally. Negative margins bleed the light
+   surface to the screen edges. */
 .reading-room.reading-room--tab {
-  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
-  z-index: 5;
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  margin: 0 -16px;
+  min-height: 50vh;
+  overflow: visible;
+  animation: none;
 }
 
 /* --- header --- */

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ArticleResponse, GlossEntry, TranslateResponse } from '@seiscientas/shared';
 import { db, type CachedArticle } from '../../db/dexie';
-import { putCard, recordError } from '../../db/repo';
+import { logSession, putCard, recordError } from '../../db/repo';
+import { podcastsFor } from './podcasts';
 import { apiPost, ApiError } from '../../lib/api';
 import { uuid } from '../../lib/id';
 import { nowIso } from '../../lib/time';
@@ -12,14 +13,18 @@ import { localeForDialect } from '../../speech/recognition';
 import { weakConcepts } from '../drill/weak';
 
 const KEEP_ARTICLES = 2;
+const TOPIC_KEY = 'read-topic';
+const TOPICS = ['anything', 'sports', 'tech', 'history', 'culture', 'science', 'politics'];
 
 async function fetchArticle(
   profile: { level: string; country: string | null },
   weak: string[],
+  topic: string,
 ): Promise<CachedArticle> {
   const res = await apiPost<ArticleResponse>('/api/ai/article', {
     level: profile.level,
     country: profile.country,
+    topic: topic === 'anything' ? undefined : topic,
     weakConcepts: weak,
   });
   const article: CachedArticle = {
@@ -92,6 +97,10 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
   const [attempt, setAttempt] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [topic, setTopic] = useState(() => localStorage.getItem(TOPIC_KEY) ?? 'anything');
+  const [pickingTopic, setPickingTopic] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [loggedPodcast, setLoggedPodcast] = useState<string | null>(null);
 
   useSessionTimer(userId, 'read', profile.daily_minutes);
 
@@ -106,7 +115,13 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
       setLoading(false);
     } else if (navigator.onLine) {
       try {
-        setArticle(await fetchArticle(profile, await weakConcepts(userId, 5)));
+        setArticle(
+          await fetchArticle(
+            profile,
+            await weakConcepts(userId, 5),
+            localStorage.getItem(TOPIC_KEY) ?? 'anything',
+          ),
+        );
       } catch (e) {
         if (e instanceof ApiError && e.code === 'budget_paused')
           setError('AI features paused until tomorrow.');
@@ -134,7 +149,11 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
       const unreadCount = await db.articles.filter((a) => !a.read_at).count();
       if (unreadCount <= 1) {
         try {
-          await fetchArticle(profile, await weakConcepts(userId, 5));
+          await fetchArticle(
+            profile,
+            await weakConcepts(userId, 5),
+            localStorage.getItem(TOPIC_KEY) ?? 'anything',
+          );
         } catch {
           // prefetch is best-effort
         }
@@ -205,6 +224,36 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
     onClose();
   }
 
+  async function newStory(picked: string): Promise<void> {
+    setPickingTopic(false);
+    setTopic(picked);
+    localStorage.setItem(TOPIC_KEY, picked);
+    if (!navigator.onLine) return;
+    stopSpeaking();
+    setFeedback(null);
+    setTranslating(false);
+    if (article && !article.read_at) {
+      await db.articles.put({ ...article, read_at: nowIso() });
+    }
+    setArticle(null);
+    setLoading(true);
+    setError(null);
+    try {
+      setArticle(await fetchArticle(profile, await weakConcepts(userId, 5), picked));
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'budget_paused')
+        setError('AI features paused until tomorrow.');
+      else setError('Could not find a story. Retry.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function logPodcast(name: string): Promise<void> {
+    await logSession({ userId, type: 'input', minutes: 30, isBonus: false, at: nowIso() });
+    setLoggedPodcast(name);
+  }
+
   const textSize = 19 * (profile.text_size / 100);
 
   return (
@@ -253,7 +302,59 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
               <button onClick={() => setTranslating(!translating)}>
                 {translating ? 'hide translation practice' : 'translation practice'}
               </button>
+              {navigator.onLine && (
+                <button onClick={() => setPickingTopic(!pickingTopic)}>
+                  new story{topic !== 'anything' ? ` · ${topic}` : ''}
+                </button>
+              )}
+              <button onClick={() => setListening(!listening)}>
+                {listening ? 'hide listening' : 'listening'}
+              </button>
             </div>
+
+            {pickingTopic && (
+              <div className="reading-controls" style={{ marginTop: 0 }}>
+                {TOPICS.map((t) => (
+                  <button
+                    key={t}
+                    style={t === topic ? { borderColor: '#b08427', color: '#b08427' } : undefined}
+                    onClick={() => void newStory(t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {listening && (
+              <div style={{ marginTop: 4 }}>
+                <p className="reading-source" style={{ marginBottom: 10 }}>
+                  podcasts at your level — listening counts, log it
+                </p>
+                {podcastsFor(profile.level).map((p) => (
+                  <div key={p.name} style={{ marginBottom: 14 }}>
+                    <p style={{ fontSize: 15, fontWeight: 600 }}>
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'inherit' }}
+                      >
+                        {p.name} ↗
+                      </a>
+                    </p>
+                    <p style={{ fontSize: 13, color: '#5a6676' }}>{p.blurb}</p>
+                    <div className="reading-controls" style={{ margin: '6px 0 0' }}>
+                      {loggedPodcast === p.name ? (
+                        <button disabled>30 min logged</button>
+                      ) : (
+                        <button onClick={() => void logPodcast(p.name)}>log 30 min</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {translating && (
               <div>

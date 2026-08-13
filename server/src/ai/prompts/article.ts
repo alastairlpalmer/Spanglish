@@ -1,8 +1,9 @@
 import type { ArticleRequest } from '@seiscientas/shared';
+import { isBeginner } from '@seiscientas/shared';
 import type { NewsItem } from '../news.js';
 
 export function articleSystemPrompt(level: string): string {
-  const beginner = ['A0', 'A1'].includes(level);
+  const beginner = isBeginner(level);
   // Beginners need the text carpeted with hints: gloss everything they are
   // unlikely to know, including everyday verbs and connectors — not just the
   // rare words.

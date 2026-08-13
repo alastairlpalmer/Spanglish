@@ -205,6 +205,20 @@ export async function sessionsBetween(
     .toArray();
 }
 
+/** Lifetime practice minutes — feeds phaseFor. One implementation so every
+ *  feature computes the same phase for the same user. */
+export async function totalMinutes(userId: string): Promise<number> {
+  let sum = 0;
+  await db.sessions
+    .where('at')
+    .aboveOrEqual('')
+    .and((s) => s.user_id === userId)
+    .each((s) => {
+      sum += s.minutes;
+    });
+  return sum;
+}
+
 export async function allSessions(userId: string): Promise<Session[]> {
   return db.sessions.where('at').aboveOrEqual('').and((s) => s.user_id === userId).sortBy('at');
 }

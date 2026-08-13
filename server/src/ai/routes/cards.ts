@@ -1,10 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+﻿import type { FastifyInstance } from 'fastify';
 import { cardsRequestSchema, cardsResponseSchema } from '@seiscientas/shared';
 import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
 import { recordCall } from '../usage.js';
-import { anthropic, MODELS, responseText, parseJsonLoose } from '../anthropic.js';
+import { anthropic, MODELS, lastTextBlock, parseJsonLoose } from '../anthropic.js';
 import { cardsSystemPrompt, cardsUserPrompt } from '../prompts/cards.js';
 import { mockCards } from '../mock/fixtures.js';
 
@@ -32,7 +32,7 @@ export function registerCardsRoute(app: FastifyInstance): void {
         outputTokens: msg.usage.output_tokens,
       });
       try {
-        return cardsResponseSchema.parse(parseJsonLoose(responseText(msg)));
+        return cardsResponseSchema.parse(parseJsonLoose(lastTextBlock(msg)));
       } catch {
         if (attempt === 1) return reply.code(502).send({ error: 'generation_failed' });
       }

@@ -6,6 +6,11 @@
 import pg from 'pg';
 import { env } from './env.js';
 
+// Return Postgres DATE columns as plain 'YYYY-MM-DD' strings. The default
+// parser produces a JS Date at server-local midnight, which shifts the day
+// under JSON serialisation on any non-UTC server and would fork plan rows.
+pg.types.setTypeParser(1082, (v: string) => v);
+
 let pool: pg.Pool | null = null;
 
 export function db(): pg.Pool | null {

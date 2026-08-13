@@ -31,13 +31,7 @@ export function ReadTab({ userId }: { userId: string }): JSX.Element {
       {segment === 'diary' ? (
         <DiarySection userId={userId} />
       ) : (
-        <ReadView
-          key={segment}
-          userId={userId}
-          embedded
-          modeOverride={segment}
-          onClose={() => {}}
-        />
+        <ReadView key={segment} userId={userId} mode={segment} />
       )}
     </div>
   );

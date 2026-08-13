@@ -7,6 +7,7 @@ import { useState } from 'react';
 import type { Level } from '@seiscientas/shared';
 import { Sheet } from '../../components/Sheet';
 import { useProfile } from '../../shell/ProfileContext';
+import { dialectFor } from '../../lib/dialect';
 
 const LEVELS: Array<{ value: Level; label: string }> = [
   { value: 'A0', label: 'None' },
@@ -15,19 +16,6 @@ const LEVELS: Array<{ value: Level; label: string }> = [
   { value: 'B1', label: 'Conversational' },
   { value: 'B2', label: 'Comfortable' },
 ];
-
-function dialectFor(country: string): string {
-  const c = country.toLowerCase();
-  if (/(mexico|méxico)/.test(c)) return 'Mexican';
-  if (/(argentina|uruguay)/.test(c)) return 'Rioplatense';
-  if (/(colombia)/.test(c)) return 'Colombian';
-  if (/(chile)/.test(c)) return 'Chilean';
-  if (/(peru|perú|bolivia|ecuador)/.test(c)) return 'Andean';
-  if (/(spain|españa)/.test(c)) return 'Castilian';
-  if (/(guatemala|honduras|salvador|nicaragua|costa rica|panama|panamá)/.test(c)) return 'Central American';
-  if (/(cuba|dominican|puerto rico)/.test(c)) return 'Caribbean';
-  return 'Latin American';
-}
 
 export function SettingsSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const { profile, update } = useProfile();

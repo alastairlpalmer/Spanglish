@@ -37,17 +37,9 @@ export function anthropic(): Anthropic {
   return client;
 }
 
-/** Extract the concatenated text blocks from a non-streaming response. */
-export function responseText(msg: Anthropic.Message): string {
-  return msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
-}
-
-/** The final text block only — with server tools (web search) the model emits
- *  interim narration blocks before the answer; concatenating them breaks
- *  JSON parsing. */
+/** The final text block of a response — the model's answer. If a response
+ *  ever carries multiple text blocks (interim narration), the last one is
+ *  the JSON we asked for; concatenating them breaks parsing. */
 export function lastTextBlock(msg: Anthropic.Message): string {
   const texts = msg.content.filter((b): b is Anthropic.TextBlock => b.type === 'text');
   return texts[texts.length - 1]?.text ?? '';

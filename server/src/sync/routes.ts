@@ -94,9 +94,13 @@ export function registerSyncRoutes(app: FastifyInstance): void {
     for (const row of parsed.data.rows) {
       const values = [req.userId, ...config.columns.map((c) => toPg(c, row[c]))];
       const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+      // LWW must hold server-side too: without the updated_at guard a lagging
+      // device's older row would overwrite newer server state, and the newer
+      // device (cursor already past) would never re-converge.
       const conflictClause = config.appendOnly
         ? 'do nothing'
-        : `do update set ${updatable.map((c) => `${q(c)} = excluded.${q(c)}`).join(', ')}`;
+        : `do update set ${updatable.map((c) => `${q(c)} = excluded.${q(c)}`).join(', ')}
+           where ${q(parsed.data.table)}.${q('updated_at')} <= excluded.${q('updated_at')}`;
       await pool.query(
         `insert into ${q(parsed.data.table)} (${cols.map(q).join(', ')})
          values (${placeholders})

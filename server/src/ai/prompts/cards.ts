@@ -1,4 +1,5 @@
 import type { CardsRequest } from '@seiscientas/shared';
+import { isBeginner } from '@seiscientas/shared';
 
 export function cardsSystemPrompt(count: number): string {
   return `You generate Spanish flashcards for a serious adult learner. Return ONLY a JSON object, no preamble, no markdown fences.
@@ -21,7 +22,7 @@ export function cardsUserPrompt(req: CardsRequest): string {
     : '';
   // True beginners need raw high-frequency vocab; the sentence stays as
   // reinforcement but must be trivially simple so the word is the card.
-  const beginner = ['A0', 'A1'].includes(req.level)
+  const beginner = isBeginner(req.level)
     ? 'The learner is a true beginner: choose only top-frequency everyday words (the first thousand a learner needs), and keep each sentence to 8 words or fewer with the simplest possible structure.'
     : '';
   return `${topic}

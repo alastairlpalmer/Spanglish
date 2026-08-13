@@ -1,11 +1,15 @@
+// The reading room: news and the daily story, rendered inside the Read tab.
+// Light serif surface, glossed words underlined, every word tappable.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArticleResponse, GlossEntry, SerialResponse, TranslateResponse } from '@seiscientas/shared';
 import { db, type CachedArticle, type Episode } from '../../db/dexie';
 import { logSession, putCard, recordError } from '../../db/repo';
 import { podcastsFor } from './podcasts';
-import { apiPost, ApiError } from '../../lib/api';
+import { apiPost, friendlyApiError } from '../../lib/api';
 import { uuid } from '../../lib/id';
 import { localDateKey, nowIso } from '../../lib/time';
+import { splitSentences } from '../../lib/text';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
 import { speak, stopSpeaking } from '../../speech/synthesis';
@@ -16,6 +20,10 @@ const KEEP_ARTICLES = 2;
 const TOPIC_KEY = 'read-topic';
 const TOPICS = ['anything', 'sports', 'tech', 'history', 'culture', 'science', 'politics'];
 const WORD_RE = /^[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]{2,}$/;
+const LETTER = 'a-zA-ZáéíóúüñÁÉÍÓÚÜÑ';
+// A piece counts as read only after this long on screen — otherwise flipping
+// between segments would burn unread articles and re-trigger paid fetches.
+const READ_THRESHOLD_MS = 45_000;
 
 interface Piece {
   kind: 'news' | 'story';
@@ -74,7 +82,9 @@ async function fetchEpisode(profile: { level: string }, weak: string[]): Promise
   const res = await apiPost<SerialResponse>('/api/ai/serial', {
     level: profile.level,
     episode: (last?.n ?? 0) + 1,
-    summary: last?.summary ?? null,
+    // Belt-and-braces truncation: an oversized stored summary must never be
+    // able to fail request validation and brick the serial.
+    summary: last?.summary?.slice(0, 3900) ?? null,
     weakConcepts: weak,
   });
   const episode: Episode = {
@@ -93,26 +103,23 @@ async function fetchEpisode(profile: { level: string }, weak: string[]): Promise
 
 /** Sentence containing the word, for mined-card context. */
 function sentenceFor(body: string, word: string): string {
-  const sentences = body.match(/[^.!?¿¡]+[.!?]*/g) ?? [body];
-  const hit = sentences.find((s) => s.toLowerCase().includes(word.toLowerCase()));
-  return (hit ?? body).trim();
+  const sentences = splitSentences(body);
+  return sentences.find((s) => s.toLowerCase().includes(word.toLowerCase())) ?? body.trim();
 }
 
 /** Sentences long enough to dictate. */
 function dictationSentences(body: string): string[] {
-  return (body.match(/[^.!?¿¡]+[.!?]*/g) ?? [])
-    .map((s) => s.trim())
+  return splitSentences(body)
     .filter((s) => s.length >= 20 && s.length <= 120)
     .slice(0, 4);
 }
 
-const stripDiacritics = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+const stripDiacritics = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 const normWord = (s: string): string =>
   stripDiacritics(s.toLowerCase().replace(/[^a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]/g, ''));
 
 interface DictationResult {
-  words: Array<{ word: string; ok: boolean }>;
+  words: Array<{ word: string; ok: boolean; counted: boolean }>;
 }
 
 function gradeDictation(target: string, typed: string): DictationResult {
@@ -120,23 +127,27 @@ function gradeDictation(target: string, typed: string): DictationResult {
   const typedNorm = typed.split(/\s+/).map(normWord).filter(Boolean);
   // Lenient: a target word counts if it appears anywhere in the attempt —
   // beginners drop articles and reorder; position-exact grading punishes too
-  // hard for a listening exercise.
+  // hard for a listening exercise. Tokens with no letters (numbers, «») are
+  // ungradeable and never count against the learner.
   const pool = new Map<string, number>();
   for (const w of typedNorm) pool.set(w, (pool.get(w) ?? 0) + 1);
   return {
     words: targetWords.map((w) => {
       const n = normWord(w);
+      if (n.length === 0) return { word: w, ok: true, counted: false };
       const have = pool.get(n) ?? 0;
       if (have > 0) {
         pool.set(n, have - 1);
-        return { word: w, ok: true };
+        return { word: w, ok: true, counted: true };
       }
-      return { word: w, ok: false };
+      return { word: w, ok: false, counted: true };
     }),
   };
 }
 
-/** Body renderer: glossed words underlined, every other word tappable. */
+/** Body renderer: glossed words underlined, every other word tappable.
+ *  Memoized on the text alone — handlers ride refs so keystrokes elsewhere
+ *  in the view never re-tokenize the article. */
 function GlossedBody({
   body,
   gloss,
@@ -148,26 +159,32 @@ function GlossedBody({
   onTap: (entry: GlossEntry) => void;
   onTapAny: (word: string) => void;
 }): JSX.Element {
+  const handlers = useRef({ onTap, onTapAny });
+  handlers.current = { onTap, onTapAny };
+
   const nodes = useMemo(() => {
+    const byWord = new Map(gloss.map((g) => [g.word.toLowerCase(), g]));
     const words = [...gloss].sort((a, b) => b.word.length - a.word.length);
     const escaped = words.map((g) => g.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    // Word boundaries: without them a gloss word matches inside longer words
+    // ("suena" splitting "suenan") and taps land on the wrong form.
     const parts = escaped.length
-      ? body.split(new RegExp(`(${escaped.join('|')})`, 'gi'))
+      ? body.split(new RegExp(`(?<![${LETTER}])(${escaped.join('|')})(?![${LETTER}])`, 'gi'))
       : [body];
 
     let key = 0;
     return parts.flatMap((part) => {
-      const entry = gloss.find((g) => g.word.toLowerCase() === part.toLowerCase());
+      const entry = byWord.get(part.toLowerCase());
       if (entry) {
         return (
-          <span key={key++} className="glossed" onClick={() => onTap(entry)}>
+          <span key={key++} className="glossed" onClick={() => handlers.current.onTap(entry)}>
             {part}
           </span>
         );
       }
-      return part.split(/([a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]+)/).map((tok) =>
+      return part.split(new RegExp(`([${LETTER}]+)`)).map((tok) =>
         WORD_RE.test(tok) ? (
-          <span key={key++} onClick={() => onTapAny(tok)}>
+          <span key={key++} onClick={() => handlers.current.onTapAny(tok)}>
             {tok}
           </span>
         ) : (
@@ -175,35 +192,18 @@ function GlossedBody({
         ),
       );
     });
-  }, [body, gloss, onTap, onTapAny]);
+  }, [body, gloss]);
 
   return <p className="reading-body">{nodes}</p>;
 }
 
-export function ReadView({
-  userId,
-  onClose,
-  embedded = false,
-  modeOverride,
-}: {
-  userId: string;
-  onClose: () => void;
-  /** Rendered inside the Read tab: leave the nav visible, no done button,
-   *  mode controlled by the parent's segment chips. */
-  embedded?: boolean;
-  modeOverride?: 'news' | 'story';
-}): JSX.Element {
+export function ReadView({ userId, mode }: { userId: string; mode: 'news' | 'story' }): JSX.Element {
   const { profile, update } = useProfile();
-  const [internalMode, setInternalMode] = useState<'news' | 'story'>(
-    () => (localStorage.getItem('read-mode') as 'news' | 'story') ?? 'news',
-  );
-  const mode = modeOverride ?? internalMode;
   const [article, setArticle] = useState<CachedArticle | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [glossOpen, setGlossOpen] = useState<GlossEntry | null>(null);
-  const [lookingUp, setLookingUp] = useState(false);
   const [mined, setMined] = useState<Set<string>>(new Set());
   const [translating, setTranslating] = useState(false);
   const [attempt, setAttempt] = useState('');
@@ -227,6 +227,11 @@ export function ReadView({
   const piece: Piece | null =
     mode === 'news' ? (article ? articlePiece(article) : null) : episode ? episodePiece(episode) : null;
 
+  // Only object identities in deps cause spurious reloads — depend on the
+  // fields actually used.
+  const level = profile.level;
+  const country = profile.country;
+
   const loadNews = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -238,11 +243,14 @@ export function ReadView({
     } else if (navigator.onLine) {
       try {
         setArticle(
-          await fetchArticle(profile, await weakConcepts(userId, 5), localStorage.getItem(TOPIC_KEY) ?? 'anything'),
+          await fetchArticle(
+            { level, country },
+            await weakConcepts(userId, 5),
+            localStorage.getItem(TOPIC_KEY) ?? 'anything',
+          ),
         );
       } catch (e) {
-        if (e instanceof ApiError && e.code === 'budget_paused') setError('AI features paused until tomorrow.');
-        else setError('Could not find a story. Retry.');
+        setError(friendlyApiError(e, 'Could not find a story. Retry.'));
       } finally {
         setLoading(false);
       }
@@ -252,7 +260,7 @@ export function ReadView({
       else setError('Offline — no cached story yet.');
       setLoading(false);
     }
-  }, [profile, userId]);
+  }, [level, country, userId]);
 
   const loadStory = useCallback(async () => {
     setLoading(true);
@@ -265,10 +273,9 @@ export function ReadView({
     }
     if (navigator.onLine) {
       try {
-        setEpisode(await fetchEpisode(profile, await weakConcepts(userId, 5)));
+        setEpisode(await fetchEpisode({ level }, await weakConcepts(userId, 5)));
       } catch (e) {
-        if (e instanceof ApiError && e.code === 'budget_paused') setError('AI features paused until tomorrow.');
-        else setError('Could not write the next episode. Retry.');
+        setError(friendlyApiError(e, 'Could not write the next episode. Retry.'));
       } finally {
         setLoading(false);
       }
@@ -278,7 +285,7 @@ export function ReadView({
       else setError('Offline — the story starts when you have a connection.');
       setLoading(false);
     }
-  }, [profile, userId]);
+  }, [level, userId]);
 
   const load = useCallback(async () => {
     setDictation(null);
@@ -291,45 +298,50 @@ export function ReadView({
     return () => stopSpeaking();
   }, [load]);
 
-  // Prefetch tomorrow's news piece once today's is on screen.
-  useEffect(() => {
-    if (mode !== 'news' || !article || !navigator.onLine) return;
-    void (async () => {
-      const unreadCount = await db.articles.filter((a) => !a.read_at).count();
-      if (unreadCount <= 1) {
-        try {
-          await fetchArticle(profile, await weakConcepts(userId, 5), localStorage.getItem(TOPIC_KEY) ?? 'anything');
-        } catch {
-          // prefetch is best-effort
-        }
-      }
-    })();
-  }, [mode, article, profile, userId]);
-
-  function switchMode(next: 'news' | 'story'): void {
-    stopSpeaking();
-    setTranslating(false);
-    setFeedback(null);
-    setPickingTopic(false);
-    setInternalMode(next);
-    localStorage.setItem('read-mode', next);
+  // A piece is marked read on unmount only after it has actually been on
+  // screen a while — segment flips must not burn unread content.
+  const displayed = useRef<{ pieceId: string | null; since: number }>({ pieceId: null, since: 0 });
+  if (piece && displayed.current.pieceId !== piece.id) {
+    displayed.current = { pieceId: piece.id, since: Date.now() };
   }
-
-  // Embedded (tab) mode has no done button — mark the piece read on unmount
-  // so the news rotation and prefetch still advance.
   const latest = useRef<{ article: CachedArticle | null; episode: Episode | null }>({
     article: null,
     episode: null,
   });
   latest.current = { article, episode };
   useEffect(() => {
-    if (!embedded) return;
     return () => {
+      if (Date.now() - displayed.current.since < READ_THRESHOLD_MS) return;
       const { article: a, episode: e } = latest.current;
-      if (a && !a.read_at) void db.articles.put({ ...a, read_at: nowIso() });
-      if (e && !e.read_at) void db.episodes.put({ ...e, read_at: nowIso() });
+      if (a && !a.read_at && displayed.current.pieceId === a.id) {
+        void db.articles.put({ ...a, read_at: nowIso() });
+      }
+      if (e && !e.read_at && displayed.current.pieceId === e.id) {
+        void db.episodes.put({ ...e, read_at: nowIso() });
+      }
     };
-  }, [embedded]);
+  }, []);
+
+  // Prefetch tomorrow's news piece — at most once per mount.
+  const prefetched = useRef(false);
+  useEffect(() => {
+    if (mode !== 'news' || !article || !navigator.onLine || prefetched.current) return;
+    prefetched.current = true;
+    void (async () => {
+      const unreadCount = await db.articles.filter((a) => !a.read_at).count();
+      if (unreadCount <= 1) {
+        try {
+          await fetchArticle(
+            { level, country },
+            await weakConcepts(userId, 5),
+            localStorage.getItem(TOPIC_KEY) ?? 'anything',
+          );
+        } catch {
+          // prefetch is best-effort
+        }
+      }
+    })();
+  }, [mode, article, level, country, userId]);
 
   async function mine(entry: GlossEntry): Promise<void> {
     if (!piece || mined.has(entry.word)) return;
@@ -368,19 +380,16 @@ export function ReadView({
       setGlossOpen({ word, meaning: 'Lookup needs a connection.' });
       return;
     }
-    setLookingUp(true);
     setGlossOpen({ word, meaning: '…' });
     try {
       const res = await apiPost<{ meaning: string; note: string | null }>('/api/ai/word', {
         word,
         sentence: sentenceFor(piece.body, word),
-        level: profile.level,
+        level,
       });
       setGlossOpen({ word, meaning: res.note ? `${res.meaning} — ${res.note}` : res.meaning });
     } catch {
       setGlossOpen({ word, meaning: 'Lookup failed. Tap again to retry.' });
-    } finally {
-      setLookingUp(false);
     }
   }
 
@@ -391,29 +400,17 @@ export function ReadView({
     try {
       const res = await apiPost<TranslateResponse>('/api/ai/translate', {
         body: piece.body,
-        attempt: attempt.trim(),
+        attempt: attempt.trim().slice(0, 2000),
       });
       setFeedback(res.feedback);
       for (const e of res.errors) {
         await recordError({ userId, concept: e.concept, wrong: e.wrong, right: e.right, why: e.why });
       }
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'budget_paused') setFeedback('AI features paused until tomorrow.');
-      else setFeedback('Check failed. Retry.');
+      setFeedback(friendlyApiError(e, 'Check failed. Retry.'));
     } finally {
       setBusy(false);
     }
-  }
-
-  async function finish(): Promise<void> {
-    stopSpeaking();
-    if (article && !article.read_at) {
-      await db.articles.put({ ...article, read_at: nowIso() });
-    }
-    if (episode && !episode.read_at) {
-      await db.episodes.put({ ...episode, read_at: nowIso() });
-    }
-    onClose();
   }
 
   async function newStory(picked: string): Promise<void> {
@@ -431,10 +428,9 @@ export function ReadView({
     setLoading(true);
     setError(null);
     try {
-      setArticle(await fetchArticle(profile, await weakConcepts(userId, 5), picked));
+      setArticle(await fetchArticle({ level, country }, await weakConcepts(userId, 5), picked));
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'budget_paused') setError('AI features paused until tomorrow.');
-      else setError('Could not find a story. Retry.');
+      setError(friendlyApiError(e, 'Could not find a story. Retry.'));
     } finally {
       setLoading(false);
     }
@@ -459,53 +455,33 @@ export function ReadView({
     if (!dictation || dictation.result) return;
     const target = dictation.sentences[dictation.i]!;
     const result = gradeDictation(target, dictation.typed);
+    const counted = result.words.filter((w) => w.counted);
     setDictation({
       ...dictation,
       result,
-      correctWords: dictation.correctWords + result.words.filter((w) => w.ok).length,
-      totalWords: dictation.totalWords + result.words.length,
+      correctWords: dictation.correctWords + counted.filter((w) => w.ok).length,
+      totalWords: dictation.totalWords + counted.length,
     });
   }
 
   function dictationNext(): void {
     if (!dictation) return;
     const next = dictation.i + 1;
-    if (next >= dictation.sentences.length) {
-      setDictation({ ...dictation, i: next, typed: '', result: null });
-      return;
-    }
     setDictation({ ...dictation, i: next, typed: '', result: null });
-    speak(dictation.sentences[next]!, localeForDialect(profile.dialect));
+    if (next < dictation.sentences.length) {
+      speak(dictation.sentences[next]!, localeForDialect(profile.dialect));
+    }
   }
 
   const textSize = 19 * (profile.text_size / 100);
   const dictationDone = dictation && dictation.i >= dictation.sentences.length;
 
   return (
-    <div
-      className={`reading-room ${embedded ? 'reading-room--tab' : ''}`}
-      style={{ ['--reading-size' as never]: `${textSize}px` }}
-    >
+    <div className="reading-room reading-room--tab" style={{ ['--reading-size' as never]: `${textSize}px` }}>
       <div className="reading-inner">
         <div className="reading-bar">
-          {embedded ? <span /> : <button onClick={() => void finish()}>← done</button>}
+          <span />
           <span>
-            {!embedded && (
-              <>
-                <button
-                  style={mode === 'news' ? { color: '#b08427' } : undefined}
-                  onClick={() => switchMode('news')}
-                >
-                  news
-                </button>
-                <button
-                  style={mode === 'story' ? { color: '#b08427' } : undefined}
-                  onClick={() => switchMode('story')}
-                >
-                  story
-                </button>
-              </>
-            )}
             <button onClick={() => void update({ text_size: Math.max(80, profile.text_size - 10) })} aria-label="smaller text">
               A−
             </button>
@@ -597,6 +573,7 @@ export function ReadView({
                   value={attempt}
                   onChange={(e) => setAttempt(e.target.value)}
                   placeholder="Write the English translation"
+                  maxLength={2000}
                 />
                 <div className="reading-controls">
                   <button disabled={busy || !attempt.trim()} onClick={() => void checkTranslation()}>
@@ -679,7 +656,7 @@ export function ReadView({
               {mined.has(glossOpen.word) ? (
                 <button disabled>in the deck</button>
               ) : (
-                <button disabled={lookingUp || glossOpen.meaning === '…'} onClick={() => void mine(glossOpen)}>
+                <button disabled={glossOpen.meaning === '…'} onClick={() => void mine(glossOpen)}>
                   Add to deck
                 </button>
               )}

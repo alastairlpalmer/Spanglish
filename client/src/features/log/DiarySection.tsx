@@ -6,8 +6,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { DiaryEntry, ReviewResponse, SayResponse } from '@seiscientas/shared';
+import { isBeginner, isScaffoldLevel } from '@seiscientas/shared';
 import { diaryEntries, saveDiaryEntry, recordReviewErrors } from '../../db/repo';
-import { apiPost, ApiError } from '../../lib/api';
+import { apiPost, friendlyApiError } from '../../lib/api';
 import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
@@ -29,8 +30,8 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
 
   // Scaffolding fades with level: open for true beginners, tucked behind a
   // toggle at A2, gone from B1.
-  const beginner = ['A0', 'A1'].includes(profile.level);
-  const scaffoldAvailable = ['A0', 'A1', 'A2'].includes(profile.level);
+  const beginner = isBeginner(profile.level);
+  const scaffoldAvailable = isScaffoldLevel(profile.level);
   const [helpOpen, setHelpOpen] = useState(beginner);
   const [english, setEnglish] = useState('');
   const [saying, setSaying] = useState(false);
@@ -57,11 +58,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
       append(res.spanish);
       setEnglish('');
     } catch (e) {
-      setSayError(
-        e instanceof ApiError && e.code === 'budget_paused'
-          ? 'AI features paused until tomorrow.'
-          : 'Could not translate. Retry.',
-      );
+      setSayError(friendlyApiError(e, 'Could not translate. Retry.'));
     } finally {
       setSaying(false);
     }
@@ -107,10 +104,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
         entryId: entry.id,
         loading: false,
         errors: [],
-        message:
-          e instanceof ApiError && e.code === 'budget_paused'
-            ? 'AI features paused until tomorrow.'
-            : 'Check failed. Retry.',
+        message: friendlyApiError(e, 'Check failed. Retry.'),
       });
     }
   }
@@ -172,6 +166,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
               value={english}
               onChange={(e) => setEnglish(e.target.value)}
               placeholder="Type it in English"
+              maxLength={200}
               disabled={saying || !navigator.onLine}
             />
             <button className="btn" type="submit" disabled={saying || !english.trim()}>

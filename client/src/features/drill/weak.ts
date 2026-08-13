@@ -4,16 +4,14 @@
 
 import { conceptState, phaseFor, type ConceptSlug } from '@seiscientas/shared';
 import { db } from '../../db/dexie';
+import { totalMinutes } from '../../db/repo';
 
 export async function weakConcepts(userId: string, limit = 5): Promise<ConceptSlug[]> {
   const rows = await db.error_concepts
     .where('[user_id+concept]')
     .between([userId, ''], [userId, '￿'])
     .toArray();
-  const totalMinutes = (
-    await db.sessions.where('at').aboveOrEqual('').and((s) => s.user_id === userId).toArray()
-  ).reduce((sum, s) => sum + s.minutes, 0);
-  const phase = phaseFor(totalMinutes / 60);
+  const phase = phaseFor((await totalMinutes(userId)) / 60);
   const now = new Date();
 
   return rows

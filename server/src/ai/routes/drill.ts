@@ -1,10 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+﻿import type { FastifyInstance } from 'fastify';
 import { drillRequestSchema, drillResponseSchema } from '@seiscientas/shared';
 import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
 import { recordCall } from '../usage.js';
-import { anthropic, MODELS, responseText, parseJsonLoose } from '../anthropic.js';
+import { anthropic, MODELS, lastTextBlock, parseJsonLoose } from '../anthropic.js';
 import { drillSystemPrompt, drillUserPrompt } from '../prompts/drill.js';
 import { mockDrill } from '../mock/fixtures.js';
 
@@ -31,7 +31,7 @@ export function registerDrillRoute(app: FastifyInstance): void {
         outputTokens: msg.usage.output_tokens,
       });
       try {
-        return drillResponseSchema.parse(parseJsonLoose(responseText(msg)));
+        return drillResponseSchema.parse(parseJsonLoose(lastTextBlock(msg)));
       } catch {
         if (attempt === 1) return reply.code(502).send({ error: 'drill_failed' });
       }

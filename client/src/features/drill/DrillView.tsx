@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import type { ConceptSlug, DrillResponse, CheckResponse } from '@seiscientas/shared';
 import { coerceConcept } from '@seiscientas/shared';
-import { apiPost, ApiError } from '../../lib/api';
+import { apiPost, friendlyApiError } from '../../lib/api';
 import { db } from '../../db/dexie';
 import { recordCleanRun, recordError } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
@@ -63,9 +63,7 @@ export function DrillView({
         setItems(res.cards);
         setStage({ name: 'item', index: 0, misses: 0 });
       } catch (e) {
-        if (e instanceof ApiError && e.code === 'budget_paused')
-          setStage({ name: 'error', message: 'AI features paused until tomorrow.' });
-        else setStage({ name: 'error', message: 'Could not build the drill. Retry.' });
+        setStage({ name: 'error', message: friendlyApiError(e, 'Could not build the drill. Retry.') });
       }
     })();
   }, [concept, userId, profile.level]);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReviewResponse, TalkRequest } from '@seiscientas/shared';
 import { streamTalk } from '../../lib/stream';
-import { apiPost, ApiError } from '../../lib/api';
+import { apiPost, friendlyApiError } from '../../lib/api';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
@@ -35,7 +35,9 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   const [typed, setTyped] = useState('');
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Errors carry their source so retry does the right thing: re-sending the
+  // last message is only correct for a failed send, not a failed review.
+  const [error, setError] = useState<{ source: 'send' | 'review'; message: string } | null>(null);
   const [ringerNote, setRingerNote] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -93,12 +95,16 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
       onError: (message) => {
         if (acc) setMessages([...next, { role: 'assistant', content: acc }]);
         setStreamingText(null);
-        setError(message);
+        setError({ source: 'send', message });
       },
     });
   }
 
   async function endConversation(): Promise<void> {
+    // Kill any in-flight tutor stream first — otherwise its onDone fires
+    // later, speaking audio and mutating messages over the review screen.
+    abortRef.current?.abort();
+    setStreamingText(null);
     stopSpeaking();
     const utterances = messages.filter((m) => m.role === 'user').map((m) => m.content);
     if (utterances.length === 0) {
@@ -116,9 +122,10 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
       await recordReviewErrors(userId, res.errors);
       setReview(res);
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'budget_paused')
-        setError('AI features paused until tomorrow. The conversation still counted.');
-      else setError('Review failed. The conversation still counted.');
+      setError({
+        source: 'review',
+        message: friendlyApiError(e, 'Review failed. The conversation still counted.'),
+      });
     } finally {
       setReviewing(false);
     }
@@ -196,10 +203,14 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
       )}
       {error && (
         <p className="error-line">
-          {error}{' '}
+          {error.message}{' '}
           <button
             className="btn quiet"
             onClick={() => {
+              if (error.source === 'review') {
+                void endConversation();
+                return;
+              }
               const last = messages[messages.length - 1];
               if (last?.role === 'user') {
                 setMessages(messages.slice(0, -1));

@@ -92,13 +92,15 @@ export const articleResponseSchema = z.object({
 export const serialRequestSchema = z.object({
   level: z.string(),
   episode: z.number().int().min(1).max(1000),
-  summary: z.string().max(2000).nullable(), // running story summary; null = start fresh
+  summary: z.string().max(4000).nullable(), // running story summary; null = start fresh
   weakConcepts: z.array(z.string()).max(25).default([]),
 });
 export const serialResponseSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(50),
-  summary: z.string().min(10), // updated running summary for the next episode
+  // Updated running summary for the next episode. Capped below the request
+  // schema's max: an oversized stored summary would 400 every future episode.
+  summary: z.string().min(10).max(3000),
   gloss: z.array(glossEntrySchema).min(4).max(40),
 });
 

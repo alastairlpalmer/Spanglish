@@ -69,16 +69,17 @@ const TABLES: TableConfig[] = [
 let inFlight: Promise<void> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Debounced sync request — call after any write. Safe to call constantly. */
+/** Debounced sync request — call after any write. Push-only: pulling all
+ *  seven tables after every local write is wasted radio on a phone. */
 export function requestSync(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => void runSync(), 3000);
+  debounceTimer = setTimeout(() => void runSync({ pull: false }), 3000);
 }
 
 /** Immediate sync — app start, reconnect, visible, post-session-commit. */
-export async function runSync(): Promise<void> {
+export async function runSync(opts: { pull: boolean } = { pull: true }): Promise<void> {
   if (inFlight) return inFlight;
-  inFlight = doSync().finally(() => {
+  inFlight = doSync(opts.pull).finally(() => {
     inFlight = null;
   });
   return inFlight;
@@ -98,12 +99,12 @@ async function syncApi<T>(path: string, body: unknown): Promise<T | null> {
   return (await res.json()) as T;
 }
 
-async function doSync(): Promise<void> {
+async function doSync(pull: boolean): Promise<void> {
   for (const table of TABLES) {
     try {
       const pushed = await pushTable(table);
       if (pushed === 'no_database') return; // dev without DB: stay local
-      await pullTable(table);
+      if (pull) await pullTable(table);
     } catch {
       // Network or auth failure: leave rows dirty, try again next trigger.
       return;
@@ -126,11 +127,15 @@ async function pushTable(table: TableConfig): Promise<'ok' | 'no_database'> {
     return clean;
   });
 
-  const result = await syncApi<{ ok: boolean }>('/api/sync/push', {
-    table: table.name,
-    rows,
-  });
-  if (result === null) return 'no_database';
+  // The server caps a push at 500 rows; an offline stretch can accumulate
+  // more, and one oversized request would wedge sync permanently.
+  for (let i = 0; i < rows.length; i += 400) {
+    const result = await syncApi<{ ok: boolean }>('/api/sync/push', {
+      table: table.name,
+      rows: rows.slice(i, i + 400),
+    });
+    if (result === null) return 'no_database';
+  }
 
   await db.transaction('rw', dexieTable, async () => {
     for (const row of dirty) {
@@ -195,7 +200,11 @@ async function pullTable(table: TableConfig): Promise<void> {
     });
 
     const last = result.rows[result.rows.length - 1]!;
-    cursor = new Date(last.updated_at as string).toISOString();
+    const nextCursor = new Date(last.updated_at as string).toISOString();
+    // Guard against a full page sharing one timestamp: a cursor that fails
+    // to advance would spin this loop forever re-pulling the same page.
+    if (nextCursor === cursor) return;
+    cursor = nextCursor;
     await setMeta(cursorKey, cursor);
     if (result.rows.length < 500) return;
   }

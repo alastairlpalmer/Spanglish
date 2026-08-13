@@ -109,6 +109,10 @@ export function SwipeCard({
       {!quietMode && (
         <button
           className="btn quiet"
+          // Pointer events must not bubble to the card: pointerup there reads
+          // as a tap and reveals the answer before the learner recalls it.
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             speak(wordFirst ? word || es : es, localeForDialect(dialect));

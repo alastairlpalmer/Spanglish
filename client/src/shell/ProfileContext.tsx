@@ -29,7 +29,10 @@ export function ProfileProvider({
 
   const reload = useCallback(async () => {
     const fresh = await getProfile(userId);
-    if (fresh) setProfile(fresh);
+    // Skip identical reloads: a fresh object identity would cascade every
+    // profile-dependent effect (full session scans, article reloads) on each
+    // app foreground.
+    setProfile((current) => (fresh && fresh.updated_at !== current.updated_at ? fresh : current));
   }, [userId]);
 
   const update = useCallback(
@@ -42,9 +45,11 @@ export function ProfileProvider({
 
   useEffect(() => {
     // Pick up rows pulled by sync while the app was elsewhere.
-    document.addEventListener('visibilitychange', () => {
+    const onVisible = (): void => {
       if (document.visibilityState === 'visible') void reload();
-    });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [reload]);
 
   return <Ctx.Provider value={{ profile, update, reload }}>{children}</Ctx.Provider>;

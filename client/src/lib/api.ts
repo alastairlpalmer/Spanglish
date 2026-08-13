@@ -9,6 +9,15 @@ export class ApiError extends Error {
   }
 }
 
+/** One place for user-facing AI error copy — nine call sites were mapping
+ *  budget_paused by hand and drifting. */
+export function friendlyApiError(e: unknown, fallback: string): string {
+  if (e instanceof ApiError && e.code === 'budget_paused') {
+    return 'AI features paused until tomorrow.';
+  }
+  return fallback;
+}
+
 /** Authed JSON POST to /api/*. Throws ApiError with the server's error code. */
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const token = await currentAccessToken();

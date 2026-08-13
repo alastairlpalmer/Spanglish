@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import {
   composePlan,
   blockCompletion,
@@ -25,6 +25,9 @@ export interface TodayState {
 
 export function useToday(userId: string): TodayState {
   const { profile } = useProfile();
+  // Depend on the fields used, not the profile object - object identity
+  // changes on every provider reload and would double the full-table scans.
+  const { daily_minutes, quiet_mode, target_date, started_at } = profile;
   const [state, setState] = useState<TodayState>({
     plan: null,
     completion: [],
@@ -70,10 +73,10 @@ export function useToday(userId: string): TodayState {
         .and((c) => c.user_id === userId && c.deleted_at === null)
         .count();
       const composed = composePlan({
-        dailyMinutes: profile.daily_minutes,
+        dailyMinutes: daily_minutes,
         dueCardCount: dueCards,
         daysSinceLastActive,
-        quietMode: profile.quiet_mode,
+        quietMode: quiet_mode,
       });
       reduced = composed.reduced;
       plan = {
@@ -86,14 +89,14 @@ export function useToday(userId: string): TodayState {
       };
       await savePlan(plan);
     } else {
-      reduced = plan.blocks.reduce((s, b) => s + b.minutes, 0) < profile.daily_minutes;
+      reduced = plan.blocks.reduce((s, b) => s + b.minutes, 0) < daily_minutes;
     }
 
     const completion = blockCompletion(plan.blocks, byType);
-    const bonusMinutes = Math.max(0, minutesToday - profile.daily_minutes);
+    const bonusMinutes = Math.max(0, minutesToday - daily_minutes);
 
     // Mark completion once, when the target is first reached.
-    if (minutesToday >= profile.daily_minutes && !plan.completed_at) {
+    if (minutesToday >= daily_minutes && !plan.completed_at) {
       plan = { ...plan, completed_at: new Date().toISOString(), bonus_minutes: bonusMinutes };
       await savePlan(plan);
     } else if (plan.completed_at && plan.bonus_minutes !== bonusMinutes) {
@@ -103,15 +106,15 @@ export function useToday(userId: string): TodayState {
 
     // Falling behind: only when a target date exists and projection drifts past it.
     let behind: TodayState['behind'] = null;
-    if (profile.target_date) {
+    if (target_date) {
       const totalHours = sessions.reduce((sum, s) => sum + s.minutes, 0) / 60;
       const projected = projectedDate({
         totalHours,
         targetHours: 200,
-        startedAt: new Date(profile.started_at),
+        startedAt: new Date(started_at),
         now: new Date(),
       });
-      const target = new Date(profile.target_date);
+      const target = new Date(target_date);
       if (projected && projected.getTime() > target.getTime()) {
         behind = {
           projected,
@@ -120,7 +123,7 @@ export function useToday(userId: string): TodayState {
       }
     }
 
-    const dayNumber = Math.max(1, daysBetween(new Date(profile.started_at), new Date()) + 1);
+    const dayNumber = Math.max(1, daysBetween(new Date(started_at), new Date()) + 1);
 
     setState({
       plan,
@@ -132,7 +135,7 @@ export function useToday(userId: string): TodayState {
       behind,
       refresh,
     });
-  }, [userId, profile]);
+  }, [userId, daily_minutes, quiet_mode, target_date, started_at]);
 
   useEffect(() => {
     void refresh();

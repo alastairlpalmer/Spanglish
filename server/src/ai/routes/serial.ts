@@ -2,7 +2,7 @@
 // episode a day, ending on a small hook. The pull is narrative, not points.
 
 import type { FastifyInstance } from 'fastify';
-import { serialRequestSchema, serialResponseSchema, type SerialRequest } from '@seiscientas/shared';
+import { isBeginner, serialRequestSchema, serialResponseSchema, type SerialRequest } from '@seiscientas/shared';
 import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
@@ -11,7 +11,7 @@ import { anthropic, MODELS, lastTextBlock, parseJsonLoose } from '../anthropic.j
 import { mockSerial } from '../mock/fixtures.js';
 
 function systemPrompt(level: string): string {
-  const beginner = ['A0', 'A1'].includes(level);
+  const beginner = isBeginner(level);
   const bodyRule = beginner
     ? 'Write 70–110 words of very simple Spanish: present tense where possible, one clause per sentence, the most common words available.'
     : 'Write 100–160 words of natural Spanish at the learner’s level: short sentences, real Spanish rather than textbook Spanish.';

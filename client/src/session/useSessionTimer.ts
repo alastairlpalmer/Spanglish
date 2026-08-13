@@ -2,6 +2,10 @@
 // presses start. Commits on unmount, visibilitychange->hidden, and pagehide
 // (iOS standalone never fires beforeunload). Elapsed time comes from
 // wall-clock timestamps — JS timers freeze in the background.
+//
+// The commit path must not await anything before the write: iOS can freeze
+// the page right after pagehide, and a session row that hasn't at least been
+// handed to IndexedDB is lost. is_bonus is computed from a pre-loaded count.
 
 import { useEffect, useRef } from 'react';
 import type { SessionType } from '@seiscientas/shared';
@@ -25,9 +29,14 @@ async function minutesLoggedToday(userId: string): Promise<number> {
 
 export function useSessionTimer(userId: string, type: SessionType, dailyTarget: number): void {
   const segment = useRef({ id: uuid(), startedAt: Date.now(), committed: false });
+  // Pre-loaded so the commit path never has to read before writing.
+  const minutesBefore = useRef(0);
 
   useEffect(() => {
     segment.current = { id: uuid(), startedAt: Date.now(), committed: false };
+    void minutesLoggedToday(userId).then((m) => {
+      minutesBefore.current = m;
+    });
 
     const commit = (): void => {
       const seg = segment.current;
@@ -36,13 +45,19 @@ export function useSessionTimer(userId: string, type: SessionType, dailyTarget: 
       if (elapsed < MIN_COMMIT_MS) return;
       seg.committed = true;
       const minutes = Math.max(1, Math.round(elapsed / 60_000));
-      const at = new Date(seg.startedAt).toISOString();
-      // Fire-and-forget: Dexie write needs no network; sync catches up later.
-      void minutesLoggedToday(userId)
-        .then((before) =>
-          logSession({ userId, type, minutes, isBonus: before >= dailyTarget, at, id: seg.id }),
-        )
-        .then(() => runSync());
+      // Write first — no reads in front of it. The Dexie put is issued
+      // synchronously; sync catches up whenever the page next lives.
+      void logSession({
+        userId,
+        type,
+        minutes,
+        isBonus: minutesBefore.current >= dailyTarget,
+        at: new Date(seg.startedAt).toISOString(),
+        id: seg.id,
+      }).then(() => {
+        minutesBefore.current += minutes;
+        return runSync();
+      });
     };
 
     const onVisibility = (): void => {

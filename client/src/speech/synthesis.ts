@@ -2,6 +2,8 @@
 // zero-length utterance), voice list loads asynchronously, and the hardware
 // ringer switch silences it entirely — surface that once.
 
+import { splitSentences } from '../lib/text';
+
 let unlocked = false;
 let voices: SpeechSynthesisVoice[] = [];
 
@@ -38,9 +40,8 @@ function pickVoice(locale: string): SpeechSynthesisVoice | null {
 export function speak(text: string, locale: string): void {
   if (!synthesisAvailable()) return;
   speechSynthesis.cancel();
-  const sentences = text.match(/[^.!?¿¡]+[.!?]*/g) ?? [text];
-  for (const sentence of sentences) {
-    const u = new SpeechSynthesisUtterance(sentence.trim());
+  for (const sentence of splitSentences(text)) {
+    const u = new SpeechSynthesisUtterance(sentence);
     u.lang = locale;
     u.rate = 0.9;
     const voice = pickVoice(locale);

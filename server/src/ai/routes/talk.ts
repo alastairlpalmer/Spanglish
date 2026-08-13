@@ -39,6 +39,9 @@ export function registerTalkRoute(app: FastifyInstance): void {
       // a conversation going), and put a cache breakpoint on the last message
       // so each turn reads the prior prefix at ~0.1x instead of full price.
       const recent = body.messages.slice(-24);
+      // The API requires a user-first conversation; truncation can land on an
+      // assistant turn, which would 400 every call from then on.
+      while (recent.length > 0 && recent[0]!.role !== 'user') recent.shift();
       const cachedMessages = recent.map((m, i) =>
         i === recent.length - 1
           ? {

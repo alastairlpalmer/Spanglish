@@ -91,7 +91,12 @@ export async function resolvePendingChecks(userId: string): Promise<void> {
   }
 }
 
+let listenerInstalled = false;
+
 export function initCheckResolution(userId: string): void {
   void resolvePendingChecks(userId);
+  // CardsView mounts on every tab visit — install the reconnect listener once.
+  if (listenerInstalled) return;
+  listenerInstalled = true;
   window.addEventListener('online', () => void resolvePendingChecks(userId));
 }

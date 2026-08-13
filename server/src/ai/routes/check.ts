@@ -1,10 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+﻿import type { FastifyInstance } from 'fastify';
 import { checkRequestSchema, checkResponseSchema, coerceConcept } from '@seiscientas/shared';
 import { env } from '../../env.js';
 import { requireUser } from '../../auth.js';
 import { budgetExceeded } from '../budget.js';
 import { recordCall } from '../usage.js';
-import { anthropic, MODELS, responseText, parseJsonLoose } from '../anthropic.js';
+import { anthropic, MODELS, lastTextBlock, parseJsonLoose } from '../anthropic.js';
 import { checkSystemPrompt, checkUserPrompt } from '../prompts/check.js';
 import { mockCheckCorrect, mockCheckWrong } from '../mock/fixtures.js';
 
@@ -36,7 +36,7 @@ export function registerCheckRoute(app: FastifyInstance): void {
         outputTokens: msg.usage.output_tokens,
       });
       try {
-        const raw = parseJsonLoose(responseText(msg)) as Record<string, unknown>;
+        const raw = parseJsonLoose(lastTextBlock(msg)) as Record<string, unknown>;
         // Enforce the closed taxonomy server-side, not just in the prompt.
         if (raw && typeof raw === 'object' && raw.concept != null) {
           raw.concept = coerceConcept(String(raw.concept));

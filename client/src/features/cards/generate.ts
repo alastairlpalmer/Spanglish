@@ -1,7 +1,7 @@
 import type { Card, CardsResponse } from '@seiscientas/shared';
 import { phaseFor, productionRatio } from '@seiscientas/shared';
 import { apiPost } from '../../lib/api';
-import { putCards } from '../../db/repo';
+import { putCards, totalMinutes } from '../../db/repo';
 import { db } from '../../db/dexie';
 import { uuid } from '../../lib/id';
 import { nowIso } from '../../lib/time';
@@ -56,10 +56,7 @@ export async function generateCards(opts: {
   // Production counterparts for a phase-derived share of the batch: the
   // learner sees the English and must produce the Spanish. Automatic, not a
   // setting (spec §6) — production rises with phase.
-  const totalMinutes = (
-    await db.sessions.where('at').aboveOrEqual('').and((s) => s.user_id === opts.userId).toArray()
-  ).reduce((sum, s) => sum + s.minutes, 0);
-  const ratio = productionRatio(phaseFor(totalMinutes / 60));
+  const ratio = productionRatio(phaseFor((await totalMinutes(opts.userId)) / 60));
   const productionCount = Math.round(res.cards.length * ratio);
 
   for (const c of res.cards.slice(0, productionCount)) {

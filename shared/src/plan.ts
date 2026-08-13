@@ -94,6 +94,17 @@ export function blockCompletion(
 
 export type LearningPhase = 'foundation' | 'output' | 'pressure';
 
+// Level tiers — the single source for beginner gating. The boundary is a
+// product decision; it must not be re-derived as array literals per feature.
+export function isBeginner(level: string): boolean {
+  return level === 'A0' || level === 'A1';
+}
+
+/** Levels that still get writing scaffolds (starters, cómo-se-dice). */
+export function isScaffoldLevel(level: string): boolean {
+  return isBeginner(level) || level === 'A2';
+}
+
 export function phaseFor(totalHours: number): LearningPhase {
   if (totalHours < 70) return 'foundation';
   if (totalHours < 140) return 'output';

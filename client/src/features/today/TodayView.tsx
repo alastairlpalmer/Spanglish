@@ -9,11 +9,11 @@ import { db } from '../../db/dexie';
 import type { Tab } from '../../shell/TabBar';
 import { formatDate } from '../../lib/time';
 
+// Error counts are deliberately absent: error_examples is pruned to 5 rows
+// per concept, so week-over-week error comparisons would be fabricated.
 interface Digest {
   hours: number;
   prevHours: number;
-  errors: number;
-  prevErrors: number;
   focus: string | null;
 }
 
@@ -37,10 +37,13 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   const [drilling, setDrilling] = useState(false);
 
   // The drill block targets the learner's weakest concept — grammar arrives
-  // as a scheduled task, never as a menu they have to choose to visit.
+  // as a scheduled task, never as a menu they have to choose to visit. The
+  // target only shifts when errors land or a drill closes, so don't recompute
+  // it on every minute tick.
   useEffect(() => {
+    if (drilling) return; // refresh when the drill closes, not while it runs
     void weakConcepts(userId, 1).then((w) => setDrillTarget(w[0] ?? null));
-  }, [userId, today.minutesToday]);
+  }, [userId, drilling]);
 
   // Weekly digest: first open each week, one factual card — hours banked,
   // error direction, this week's focus. Instrument voice, no praise.
@@ -60,18 +63,11 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
         .toArray();
       const mins = (from: string, to: string): number =>
         sessions.filter((s) => s.at >= from && s.at < to).reduce((sum, s) => sum + s.minutes, 0);
-      const errs = await db.error_examples
-        .where('at')
-        .aboveOrEqual(twoWeeksAgo)
-        .and((e) => e.user_id === userId)
-        .toArray();
       const nowIso = new Date(now).toISOString();
       const weak = await weakConcepts(userId, 1);
       setDigest({
         hours: mins(weekAgo, nowIso) / 60,
         prevHours: mins(twoWeeksAgo, weekAgo) / 60,
-        errors: errs.filter((e) => e.at >= weekAgo).length,
-        prevErrors: errs.filter((e) => e.at < weekAgo).length,
         focus: weak[0] ?? null,
       });
     })();
@@ -107,15 +103,11 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   const done = today.minutesToday >= profile.daily_minutes;
   const nextIndex = today.completion.findIndex((c) => !c);
 
-  // Falling-behind line appears at most once per week.
-  let showBehind = false;
-  if (today.behind) {
-    const shown = localStorage.getItem(WEEKLY_BEHIND_KEY);
-    if (shown !== weekKey()) {
-      showBehind = true;
-      localStorage.setItem(WEEKLY_BEHIND_KEY, weekKey());
-    }
-  }
+  // Falling-behind line appears at most once per week. The suppression key is
+  // written on dismiss, never during render — a render side effect made the
+  // line vanish on the next re-render before anyone read it.
+  const showBehind =
+    today.behind !== null && localStorage.getItem(WEEKLY_BEHIND_KEY) !== weekKey();
 
   function goFor(type: string): void {
     if (type === 'cards') onGo('cards');
@@ -159,14 +151,6 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
             {digest.prevHours > 0 && (
               <span className="muted"> ({digest.prevHours.toFixed(1)} the week before)</span>
             )}
-            . Errors {digest.prevErrors > 0 && digest.errors < digest.prevErrors ? 'down' : ''}
-            {digest.prevErrors > 0 && digest.errors > digest.prevErrors ? 'up' : ''}
-            {digest.prevErrors > 0 && digest.errors === digest.prevErrors ? 'level' : ''}
-            {digest.prevErrors === 0 ? 'logged' : ''}:{' '}
-            <span className="mono">
-              {digest.errors}
-              {digest.prevErrors > 0 ? ` vs ${digest.prevErrors}` : ''}
-            </span>
             {digest.focus && (
               <>
                 . This week's focus: <span className="mono">{digest.focus}</span>
@@ -260,7 +244,17 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
         <p className="muted" style={{ fontSize: 14 }}>
           At current pace, readiness lands {formatDate(today.behind.projected)}.
           {today.behind.recoverMinutes !== null &&
-            ` ${today.behind.recoverMinutes} min/day recovers the date.`}
+            ` ${today.behind.recoverMinutes} min/day recovers the date.`}{' '}
+          <button
+            className="btn quiet"
+            style={{ minHeight: 0, padding: '0 4px' }}
+            onClick={() => {
+              localStorage.setItem(WEEKLY_BEHIND_KEY, weekKey());
+              void today.refresh();
+            }}
+          >
+            noted
+          </button>
         </p>
       )}
     </div>

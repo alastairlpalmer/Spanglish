@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Level, TargetKind } from '@seiscientas/shared';
 import { saveProfile } from '../db/repo';
 import { nowIso, formatDate } from '../lib/time';
+import { dialectFor } from '../lib/dialect';
 
 // Three decisions plus minutes, one screen each, ~30 seconds. No account here —
 // auth already happened (or local mode skips it).
@@ -15,19 +16,6 @@ const LEVELS: Array<{ value: Level; label: string; sub: string }> = [
 ];
 
 const MINUTE_CHOICES = [30, 60, 90];
-
-function dialectFor(country: string): string {
-  const c = country.toLowerCase();
-  if (/(mexico|méxico)/.test(c)) return 'Mexican';
-  if (/(argentina|uruguay)/.test(c)) return 'Rioplatense';
-  if (/(colombia)/.test(c)) return 'Colombian';
-  if (/(chile)/.test(c)) return 'Chilean';
-  if (/(peru|perú|bolivia|ecuador)/.test(c)) return 'Andean';
-  if (/(spain|españa)/.test(c)) return 'Castilian';
-  if (/(guatemala|honduras|salvador|nicaragua|costa rica|panama|panamá)/.test(c)) return 'Central American';
-  if (/(cuba|dominican|puerto rico)/.test(c)) return 'Caribbean';
-  return 'Latin American';
-}
 
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }): JSX.Element {
   const [step, setStep] = useState(0);

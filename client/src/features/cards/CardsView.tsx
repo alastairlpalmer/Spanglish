@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { scheduleCard } from '@seiscientas/shared';
+import { isBeginner, scheduleCard } from '@seiscientas/shared';
 import { useQueue } from './useQueue';
 import { generateCards } from './generate';
 import { SwipeCard } from './SwipeCard';
@@ -8,7 +8,7 @@ import { initCheckResolution } from './checks';
 import { putCard } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
-import { ApiError } from '../../lib/api';
+import { friendlyApiError } from '../../lib/api';
 
 const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -64,9 +64,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
       setTopic('');
       await refresh();
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'budget_paused')
-        setGenError('AI features paused until tomorrow.');
-      else setGenError('Generation failed. Retry.');
+      setGenError(friendlyApiError(e, 'Generation failed. Retry.'));
     } finally {
       setGenerating(false);
     }
@@ -137,7 +135,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
             card={current}
             quietMode={profile.quiet_mode}
             dialect={profile.dialect}
-            wordFirst={['A0', 'A1'].includes(profile.level)}
+            wordFirst={isBeginner(profile.level)}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />

@@ -3,7 +3,6 @@ import type { ConceptSlug } from '@seiscientas/shared';
 import { useToday } from './useToday';
 import { useProfile } from '../../shell/ProfileContext';
 import { Ring } from '../../components/Ring';
-import { ReadView } from '../read/ReadView';
 import { DrillView } from '../drill/DrillView';
 import { weakConcepts } from '../drill/weak';
 import { db } from '../../db/dexie';
@@ -34,7 +33,6 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   const { profile, update: profileUpdate } = useProfile();
   const today = useToday(userId);
   const [keepGoing, setKeepGoing] = useState(false);
-  const [reading, setReading] = useState(false);
   const [drillTarget, setDrillTarget] = useState<ConceptSlug | null>(null);
   const [drilling, setDrilling] = useState(false);
 
@@ -104,18 +102,6 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
     );
   }
 
-  if (reading) {
-    return (
-      <ReadView
-        userId={userId}
-        onClose={() => {
-          setReading(false);
-          void today.refresh();
-        }}
-      />
-    );
-  }
-
   if (!today.plan) return <p className="muted">composing the day</p>;
 
   const done = today.minutesToday >= profile.daily_minutes;
@@ -137,7 +123,7 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
       if (drillTarget) setDrilling(true);
       else onGo('cards'); // nothing to drill yet — cards are the best use of the time
     } else if (type === 'talk') onGo('talk');
-    else if (type === 'read') setReading(true);
+    else if (type === 'read') onGo('reading');
   }
 
   if (done && !keepGoing) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArticleResponse, GlossEntry, SerialResponse, TranslateResponse } from '@seiscientas/shared';
 import { db, type CachedArticle, type Episode } from '../../db/dexie';
 import { logSession, putCard, recordError } from '../../db/repo';
@@ -180,11 +180,24 @@ function GlossedBody({
   return <p className="reading-body">{nodes}</p>;
 }
 
-export function ReadView({ userId, onClose }: { userId: string; onClose: () => void }): JSX.Element {
+export function ReadView({
+  userId,
+  onClose,
+  embedded = false,
+  modeOverride,
+}: {
+  userId: string;
+  onClose: () => void;
+  /** Rendered inside the Read tab: leave the nav visible, no done button,
+   *  mode controlled by the parent's segment chips. */
+  embedded?: boolean;
+  modeOverride?: 'news' | 'story';
+}): JSX.Element {
   const { profile, update } = useProfile();
-  const [mode, setMode] = useState<'news' | 'story'>(
+  const [internalMode, setInternalMode] = useState<'news' | 'story'>(
     () => (localStorage.getItem('read-mode') as 'news' | 'story') ?? 'news',
   );
+  const mode = modeOverride ?? internalMode;
   const [article, setArticle] = useState<CachedArticle | null>(null);
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [loading, setLoading] = useState(true);
@@ -298,9 +311,25 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
     setTranslating(false);
     setFeedback(null);
     setPickingTopic(false);
-    setMode(next);
+    setInternalMode(next);
     localStorage.setItem('read-mode', next);
   }
+
+  // Embedded (tab) mode has no done button — mark the piece read on unmount
+  // so the news rotation and prefetch still advance.
+  const latest = useRef<{ article: CachedArticle | null; episode: Episode | null }>({
+    article: null,
+    episode: null,
+  });
+  latest.current = { article, episode };
+  useEffect(() => {
+    if (!embedded) return;
+    return () => {
+      const { article: a, episode: e } = latest.current;
+      if (a && !a.read_at) void db.articles.put({ ...a, read_at: nowIso() });
+      if (e && !e.read_at) void db.episodes.put({ ...e, read_at: nowIso() });
+    };
+  }, [embedded]);
 
   async function mine(entry: GlossEntry): Promise<void> {
     if (!piece || mined.has(entry.word)) return;
@@ -453,23 +482,30 @@ export function ReadView({ userId, onClose }: { userId: string; onClose: () => v
   const dictationDone = dictation && dictation.i >= dictation.sentences.length;
 
   return (
-    <div className="reading-room" style={{ ['--reading-size' as never]: `${textSize}px` }}>
+    <div
+      className={`reading-room ${embedded ? 'reading-room--tab' : ''}`}
+      style={{ ['--reading-size' as never]: `${textSize}px` }}
+    >
       <div className="reading-inner">
         <div className="reading-bar">
-          <button onClick={() => void finish()}>← done</button>
+          {embedded ? <span /> : <button onClick={() => void finish()}>← done</button>}
           <span>
-            <button
-              style={mode === 'news' ? { color: '#b08427' } : undefined}
-              onClick={() => switchMode('news')}
-            >
-              news
-            </button>
-            <button
-              style={mode === 'story' ? { color: '#b08427' } : undefined}
-              onClick={() => switchMode('story')}
-            >
-              story
-            </button>
+            {!embedded && (
+              <>
+                <button
+                  style={mode === 'news' ? { color: '#b08427' } : undefined}
+                  onClick={() => switchMode('news')}
+                >
+                  news
+                </button>
+                <button
+                  style={mode === 'story' ? { color: '#b08427' } : undefined}
+                  onClick={() => switchMode('story')}
+                >
+                  story
+                </button>
+              </>
+            )}
             <button onClick={() => void update({ text_size: Math.max(80, profile.text_size - 10) })} aria-label="smaller text">
               A−
             </button>

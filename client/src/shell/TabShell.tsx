@@ -4,6 +4,7 @@ import { useProfile } from './ProfileContext';
 import { TodayView } from '../features/today/TodayView';
 import { CardsView } from '../features/cards/CardsView';
 import { TalkView } from '../features/talk/TalkView';
+import { ReadTab } from '../features/read/ReadTab';
 import { LogView } from '../features/log/LogView';
 
 function useOnline(): boolean {
@@ -35,6 +36,7 @@ export function TabShell({ userId }: { userId: string }): JSX.Element {
             {tab === 'today' && 'Today'}
             {tab === 'cards' && 'Cards'}
             {tab === 'talk' && 'Talk'}
+            {tab === 'reading' && 'Read'}
             {tab === 'log' && 'Log'}
           </h1>
           <button
@@ -48,6 +50,7 @@ export function TabShell({ userId }: { userId: string }): JSX.Element {
         {tab === 'today' && <TodayView userId={userId} onGo={setTab} />}
         {tab === 'cards' && <CardsView userId={userId} online={online} />}
         {tab === 'talk' && <TalkView userId={userId} online={online} />}
+        {tab === 'reading' && <ReadTab userId={userId} />}
         {tab === 'log' && <LogView userId={userId} />}
       </main>
       <TabBar active={tab} onChange={setTab} />

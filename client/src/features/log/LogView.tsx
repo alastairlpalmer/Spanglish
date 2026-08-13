@@ -6,6 +6,7 @@ import { logSession } from '../../db/repo';
 import { useProfile } from '../../shell/ProfileContext';
 import { Sheet } from '../../components/Sheet';
 import { ProgressMap } from './ProgressMap';
+import { DiarySection } from './DiarySection';
 import { SettingsSheet } from './SettingsSheet';
 import { DrillView } from '../drill/DrillView';
 import { formatDate, localDateKey, nowIso, startOfLocalDayDate } from '../../lib/time';
@@ -199,6 +200,9 @@ export function LogView({ userId }: { userId: string }): JSX.Element {
 
       {/* progress map: the error ledger pointed forwards */}
       <ProgressMap userId={userId} onDrill={setDrilling} />
+
+      {/* diary: short daily entries in Spanish, on a timeline */}
+      <DiarySection userId={userId} />
 
       <button className="btn quiet block" onClick={() => setSettingsOpen(true)}>
         settings

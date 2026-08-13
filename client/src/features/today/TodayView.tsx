@@ -6,8 +6,17 @@ import { Ring } from '../../components/Ring';
 import { ReadView } from '../read/ReadView';
 import { DrillView } from '../drill/DrillView';
 import { weakConcepts } from '../drill/weak';
+import { db } from '../../db/dexie';
 import type { Tab } from '../../shell/TabBar';
 import { formatDate } from '../../lib/time';
+
+interface Digest {
+  hours: number;
+  prevHours: number;
+  errors: number;
+  prevErrors: number;
+  focus: string | null;
+}
 
 // The home screen answers "what do I do in the next N minutes" and gives the
 // day an end. Done state: ring closes, plan collapses, one line, no confetti.
@@ -34,6 +43,41 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   useEffect(() => {
     void weakConcepts(userId, 1).then((w) => setDrillTarget(w[0] ?? null));
   }, [userId, today.minutesToday]);
+
+  // Weekly digest: first open each week, one factual card — hours banked,
+  // error direction, this week's focus. Instrument voice, no praise.
+  const [digest, setDigest] = useState<Digest | null>(null);
+  useEffect(() => {
+    if (localStorage.getItem('digest-week') === weekKey()) return;
+    const startedDaysAgo = (Date.now() - new Date(profile.started_at).getTime()) / 86_400_000;
+    if (startedDaysAgo < 7) return;
+    void (async () => {
+      const now = Date.now();
+      const weekAgo = new Date(now - 7 * 86_400_000).toISOString();
+      const twoWeeksAgo = new Date(now - 14 * 86_400_000).toISOString();
+      const sessions = await db.sessions
+        .where('at')
+        .aboveOrEqual(twoWeeksAgo)
+        .and((s) => s.user_id === userId)
+        .toArray();
+      const mins = (from: string, to: string): number =>
+        sessions.filter((s) => s.at >= from && s.at < to).reduce((sum, s) => sum + s.minutes, 0);
+      const errs = await db.error_examples
+        .where('at')
+        .aboveOrEqual(twoWeeksAgo)
+        .and((e) => e.user_id === userId)
+        .toArray();
+      const nowIso = new Date(now).toISOString();
+      const weak = await weakConcepts(userId, 1);
+      setDigest({
+        hours: mins(weekAgo, nowIso) / 60,
+        prevHours: mins(twoWeeksAgo, weekAgo) / 60,
+        errors: errs.filter((e) => e.at >= weekAgo).length,
+        prevErrors: errs.filter((e) => e.at < weekAgo).length,
+        focus: weak[0] ?? null,
+      });
+    })();
+  }, [userId, profile.started_at]);
 
   // One conversion prompt, once (spec §10a): an intended date within 30 days
   // with nothing booked. Never asked again, whatever the answer.
@@ -121,6 +165,41 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
 
   return (
     <div className="stack">
+      {digest && (
+        <div className="panel stack">
+          <p className="eyebrow">last week</p>
+          <p style={{ fontSize: 14 }}>
+            <span className="mono">{digest.hours.toFixed(1)} h</span> banked
+            {digest.prevHours > 0 && (
+              <span className="muted"> ({digest.prevHours.toFixed(1)} the week before)</span>
+            )}
+            . Errors {digest.prevErrors > 0 && digest.errors < digest.prevErrors ? 'down' : ''}
+            {digest.prevErrors > 0 && digest.errors > digest.prevErrors ? 'up' : ''}
+            {digest.prevErrors > 0 && digest.errors === digest.prevErrors ? 'level' : ''}
+            {digest.prevErrors === 0 ? 'logged' : ''}:{' '}
+            <span className="mono">
+              {digest.errors}
+              {digest.prevErrors > 0 ? ` vs ${digest.prevErrors}` : ''}
+            </span>
+            {digest.focus && (
+              <>
+                . This week's focus: <span className="mono">{digest.focus}</span>
+              </>
+            )}
+            .
+          </p>
+          <button
+            className="btn quiet"
+            onClick={() => {
+              localStorage.setItem('digest-week', weekKey());
+              setDigest(null);
+            }}
+          >
+            noted
+          </button>
+        </div>
+      )}
+
       {showConversion && (
         <div className="panel stack">
           <p style={{ fontSize: 14 }}>

@@ -105,6 +105,16 @@ create table if not exists plans (
   primary key (user_id, date)
 );
 
+create table if not exists diary (
+  id          uuid primary key,
+  user_id     uuid not null,
+  text        text not null,
+  at          timestamptz not null,
+  updated_at  timestamptz not null default now()
+);
+create index if not exists diary_user_at on diary (user_id, at desc);
+create index if not exists diary_user_updated on diary (user_id, updated_at);
+
 create table if not exists ai_calls (
   id            bigserial primary key,
   user_id       uuid not null,

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import type {
   Card,
+  DiaryEntry,
   ErrorConcept,
   ErrorExample,
   Plan,
@@ -38,6 +39,19 @@ export interface CachedArticle {
   read_at: string | null;
 }
 
+// The daily serial — client-side. `summary` carries the running story state
+// into the next episode; `n` is the episode number.
+export interface Episode {
+  id: string;
+  n: number;
+  date: string; // YYYY-MM-DD local — one episode per day
+  title: string;
+  body: string;
+  summary: string;
+  gloss: Array<{ word: string; meaning: string }>;
+  read_at: string | null;
+}
+
 export class SeisDb extends Dexie {
   profile!: Table<Synced<Profile>, string>;
   sessions!: Table<Synced<Session>, string>;
@@ -48,6 +62,8 @@ export class SeisDb extends Dexie {
   meta!: Table<MetaRow, string>;
   pending_checks!: Table<PendingCheck, string>;
   articles!: Table<CachedArticle, string>;
+  episodes!: Table<Episode, string>;
+  diary!: Table<Synced<DiaryEntry>, string>;
 
   constructor() {
     super('seiscientas');
@@ -63,6 +79,10 @@ export class SeisDb extends Dexie {
     });
     this.version(2).stores({
       articles: 'id, fetched_at',
+    });
+    this.version(3).stores({
+      episodes: 'id, date, n',
+      diary: 'id, at, dirty, updated_at',
     });
   }
 }

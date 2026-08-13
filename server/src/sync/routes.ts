@@ -53,6 +53,11 @@ const TABLES: Record<string, TableConfig> = {
     conflict: ['user_id', 'date'],
     appendOnly: false,
   },
+  diary: {
+    columns: ['id', 'text', 'at', 'updated_at'],
+    conflict: ['id'],
+    appendOnly: false, // entries are editable; LWW is fine for one user
+  },
 };
 
 const pushSchema = z.object({

@@ -81,6 +81,14 @@ export interface ErrorExample {
   updated_at: string;
 }
 
+export interface DiaryEntry {
+  id: string;
+  user_id: string;
+  text: string;
+  at: string;
+  updated_at: string;
+}
+
 export type PlanBlockType = 'cards' | 'talk' | 'drill' | 'read';
 
 export interface PlanBlock {

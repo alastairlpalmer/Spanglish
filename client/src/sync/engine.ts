@@ -9,7 +9,7 @@ import { db, getMeta, setMeta, type Synced } from '../db/dexie';
 import { storedToken } from '../lib/auth';
 
 interface TableConfig {
-  name: 'profile' | 'sessions' | 'cards' | 'error_concepts' | 'error_examples' | 'plans';
+  name: 'profile' | 'sessions' | 'cards' | 'error_concepts' | 'error_examples' | 'plans' | 'diary';
   appendOnly: boolean;
   /** Dexie primary key extractor, for dedupe + conflict checks. */
   key: (row: Record<string, unknown>) => string | [string, string];
@@ -56,6 +56,13 @@ const TABLES: TableConfig[] = [
     key: (r) => [r.user_id as string, r.date as string],
     dateColumns: ['completed_at'],
     dayColumns: ['date'],
+  },
+  {
+    name: 'diary',
+    appendOnly: false,
+    key: (r) => r.id as string,
+    dateColumns: ['at'],
+    dayColumns: [],
   },
 ];
 

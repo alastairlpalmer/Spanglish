@@ -48,6 +48,30 @@ export const mockDrill: DrillResponse = {
   ],
 };
 
+export const mockSerial = {
+  title: 'La llave perdida',
+  body: 'Marta vive en un piso pequeño en el centro. Hoy no encuentra su llave. Busca en el bolso. Busca en la mesa. Nada. Su vecino Andrés abre la puerta y pregunta: «¿Todo bien?». Marta dice que no puede entrar en casa. Andrés sonríe y dice que tiene una escalera en el patio. La ventana de la cocina está abierta. Marta mira la escalera. Mira la ventana. En ese momento, suena su teléfono. Es un número desconocido.',
+  summary:
+    'Marta, who lives in a small city-centre flat, has lost her key and cannot get in. Her friendly neighbour Andrés offers his ladder because her kitchen window is open. Just as she considers climbing, her phone rings from an unknown number.',
+  gloss: [
+    { word: 'llave', meaning: 'key' },
+    { word: 'no encuentra', meaning: "can't find" },
+    { word: 'Busca', meaning: 'she looks for' },
+    { word: 'bolso', meaning: 'handbag' },
+    { word: 'vecino', meaning: 'neighbour' },
+    { word: 'abre', meaning: 'opens' },
+    { word: 'pregunta', meaning: 'asks' },
+    { word: 'entrar', meaning: 'to go in' },
+    { word: 'sonríe', meaning: 'smiles' },
+    { word: 'escalera', meaning: 'ladder' },
+    { word: 'patio', meaning: 'courtyard' },
+    { word: 'ventana', meaning: 'window' },
+    { word: 'cocina', meaning: 'kitchen' },
+    { word: 'suena', meaning: 'rings' },
+    { word: 'desconocido', meaning: 'unknown' },
+  ],
+};
+
 export const mockTalkReplies: string[] = [
   'Pues mira, el piso tiene dos habitaciones y da a la calle. ¿Cuánto tiempo llevas buscando?',
   'Ya, eso pasa mucho por esta zona. ¿Y qué presupuesto tienes al mes?',

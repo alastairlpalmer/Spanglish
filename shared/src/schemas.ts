@@ -88,6 +88,20 @@ export const articleResponseSchema = z.object({
   gloss: z.array(glossEntrySchema).min(6).max(40),
 });
 
+// ---- /api/ai/serial (daily continuing story) ----
+export const serialRequestSchema = z.object({
+  level: z.string(),
+  episode: z.number().int().min(1).max(1000),
+  summary: z.string().max(2000).nullable(), // running story summary; null = start fresh
+  weakConcepts: z.array(z.string()).max(25).default([]),
+});
+export const serialResponseSchema = z.object({
+  title: z.string().min(1),
+  body: z.string().min(50),
+  summary: z.string().min(10), // updated running summary for the next episode
+  gloss: z.array(glossEntrySchema).min(4).max(40),
+});
+
 // ---- /api/ai/word (tap-any-word lookup in Read) ----
 export const wordRequestSchema = z.object({
   word: z.string().min(1).max(60),
@@ -138,6 +152,8 @@ export const drillResponseSchema = z.object({
 export type ArticleRequest = z.infer<typeof articleRequestSchema>;
 export type ArticleResponse = z.infer<typeof articleResponseSchema>;
 export type GlossEntry = z.infer<typeof glossEntrySchema>;
+export type SerialRequest = z.infer<typeof serialRequestSchema>;
+export type SerialResponse = z.infer<typeof serialResponseSchema>;
 export type WordRequest = z.infer<typeof wordRequestSchema>;
 export type WordResponse = z.infer<typeof wordResponseSchema>;
 export type TranslateRequest = z.infer<typeof translateRequestSchema>;

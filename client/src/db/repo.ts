@@ -3,6 +3,7 @@
 
 import type {
   Card,
+  DiaryEntry,
   ErrorExample,
   Plan,
   Profile,
@@ -138,6 +139,33 @@ export async function savePlan(plan: Omit<Plan, 'updated_at'>): Promise<void> {
 
 export async function getPlan(userId: string, date: string): Promise<Plan | null> {
   return (await db.plans.get([userId, date])) ?? null;
+}
+
+export async function saveDiaryEntry(opts: {
+  userId: string;
+  text: string;
+  id?: string;
+  at?: string;
+}): Promise<DiaryEntry> {
+  const entry: DiaryEntry = {
+    id: opts.id ?? uuid(),
+    user_id: opts.userId,
+    text: opts.text,
+    at: opts.at ?? nowIso(),
+    updated_at: nowIso(),
+  };
+  await db.diary.put({ ...entry, dirty: 1 });
+  requestSync();
+  return entry;
+}
+
+export async function diaryEntries(userId: string): Promise<DiaryEntry[]> {
+  const all = await db.diary
+    .where('at')
+    .aboveOrEqual('')
+    .and((e) => e.user_id === userId)
+    .sortBy('at');
+  return all.reverse();
 }
 
 export async function queuePendingCheck(opts: {

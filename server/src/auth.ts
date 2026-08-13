@@ -1,6 +1,11 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
-import { jwtVerify } from 'jose';
-import { env, DEV_USER_ID } from './env.js';
+// Single-user auth: passcode in, server-signed JWT out. Simpler than email
+// OTP and with no third-party dependency. Dev mode (no APP_PASSCODE or
+// AUTH_SECRET configured) accepts `Bearer dev` with a fixed user id.
+
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { SignJWT, jwtVerify } from 'jose';
+import { timingSafeEqual } from 'node:crypto';
+import { env, APP_USER_ID } from './env.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -8,12 +13,15 @@ declare module 'fastify' {
   }
 }
 
-const secret = env.SUPABASE_JWT_SECRET
-  ? new TextEncoder().encode(env.SUPABASE_JWT_SECRET)
-  : null;
+const secret = env.AUTH_SECRET ? new TextEncoder().encode(env.AUTH_SECRET) : null;
 
-/** preHandler: verifies the Supabase JWT locally (HS256). In dev (no secret
- *  configured) accepts `Bearer dev` and pins a fixed user id. */
+function passcodeMatches(attempt: string): boolean {
+  const expected = Buffer.from(env.APP_PASSCODE ?? '');
+  const given = Buffer.from(attempt);
+  if (expected.length !== given.length) return false;
+  return timingSafeEqual(expected, given);
+}
+
 export async function requireUser(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const header = req.headers.authorization ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -23,9 +31,9 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply): Pro
     return;
   }
 
-  if (!secret) {
-    if (env.devAuth && token === 'dev') {
-      req.userId = DEV_USER_ID;
+  if (env.devAuth) {
+    if (token === 'dev') {
+      req.userId = APP_USER_ID;
       return;
     }
     reply.code(401).send({ error: 'unauthorized' });
@@ -33,13 +41,36 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply): Pro
   }
 
   try {
-    const { payload } = await jwtVerify(token, secret, {
-      // Supabase signs user tokens with aud 'authenticated'.
-      audience: 'authenticated',
-    });
+    const { payload } = await jwtVerify(token, secret!, { audience: 'seiscientas' });
     if (typeof payload.sub !== 'string') throw new Error('no sub');
     req.userId = payload.sub;
   } catch {
     reply.code(401).send({ error: 'unauthorized' });
   }
+}
+
+export function registerAuthRoutes(app: FastifyInstance): void {
+  app.post('/api/auth/login', async (req, reply) => {
+    const body = (req.body ?? {}) as { passcode?: string };
+
+    if (env.devAuth) {
+      // No passcode configured: local dev — hand out the dev identity.
+      return { token: 'dev', userId: APP_USER_ID };
+    }
+    if (typeof body.passcode !== 'string' || !passcodeMatches(body.passcode)) {
+      return reply.code(401).send({ error: 'wrong_passcode' });
+    }
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(APP_USER_ID)
+      .setAudience('seiscientas')
+      .setIssuedAt()
+      .setExpirationTime('180d')
+      .sign(secret!);
+    return { token, userId: APP_USER_ID };
+  });
+
+  app.get('/api/auth/me', { preHandler: requireUser }, async (req) => ({
+    userId: req.userId,
+  }));
 }

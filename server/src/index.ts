@@ -4,7 +4,10 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from './env.js';
+import { migrate } from './db.js';
 import { hydrateTally } from './ai/usage.js';
+import { registerAuthRoutes } from './auth.js';
+import { registerSyncRoutes } from './sync/routes.js';
 import { registerCardsRoute } from './ai/routes/cards.js';
 import { registerCheckRoute } from './ai/routes/check.js';
 import { registerTalkRoute } from './ai/routes/talk.js';
@@ -16,9 +19,11 @@ const app = Fastify({ logger: true });
 app.get('/api/health', async () => ({
   ok: true,
   mock: env.aiMock,
-  supabase: env.hasSupabase,
+  db: env.hasDb,
 }));
 
+registerAuthRoutes(app);
+registerSyncRoutes(app);
 registerCardsRoute(app);
 registerCheckRoute(app);
 registerTalkRoute(app);
@@ -41,6 +46,7 @@ if (existsSync(clientDist)) {
 }
 
 async function main(): Promise<void> {
+  await migrate();
   await hydrateTally();
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
 }

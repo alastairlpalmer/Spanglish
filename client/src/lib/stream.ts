@@ -1,5 +1,5 @@
 import type { TalkRequest, TalkStreamEvent } from '@seiscientas/shared';
-import { currentAccessToken } from './supabase';
+import { currentAccessToken } from './auth';
 
 export interface StreamHandlers {
   onDelta: (text: string) => void;

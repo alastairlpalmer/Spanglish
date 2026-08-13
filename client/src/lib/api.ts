@@ -1,4 +1,4 @@
-import { currentAccessToken } from './supabase';
+import { currentAccessToken } from './auth';
 
 export class ApiError extends Error {
   constructor(

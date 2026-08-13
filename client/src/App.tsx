@@ -7,7 +7,6 @@ import { TabShell } from './shell/TabShell';
 import { ProfileProvider } from './shell/ProfileContext';
 import { getProfile } from './db/repo';
 import { initSyncTriggers, runSync } from './sync/engine';
-import { LOCAL_MODE } from './lib/supabase';
 
 const INSTALL_NOTE_KEY = 'install-note-shown';
 
@@ -37,7 +36,7 @@ export function App(): JSX.Element {
     setProfileLoading(true);
     void (async () => {
       let p = await getProfile(auth.userId!);
-      if (!p && !LOCAL_MODE) {
+      if (!p) {
         // Fresh install on a second device: pull before deciding to onboard.
         await runSync();
         p = await getProfile(auth.userId!);
@@ -57,7 +56,9 @@ export function App(): JSX.Element {
     return <div className="empty-state">opening</div>;
   }
 
-  if (!auth.userId) return <SignIn />;
+  if (auth.needsSignIn || !auth.userId) {
+    return <SignIn onSignedIn={() => void auth.recheck()} />;
+  }
 
   if (!profile?.onboarded) {
     return (

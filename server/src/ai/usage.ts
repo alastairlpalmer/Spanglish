@@ -1,7 +1,7 @@
 // ai_calls logging + in-memory daily tally. The in-memory tally makes the
-// budget cap work even without Supabase; the table makes it durable.
+// budget cap work even without a database; the table makes it durable.
 
-import { serviceDb } from '../db.js';
+import { db } from '../db.js';
 import { costUsd } from './anthropic.js';
 
 let tallyDay = '';
@@ -30,31 +30,31 @@ export async function recordCall(opts: {
   }
   tallyTokens += opts.inputTokens + opts.outputTokens;
 
-  const db = serviceDb();
-  if (!db) return;
-  await db.from('ai_calls').insert({
-    user_id: opts.userId,
-    feature: opts.feature,
-    model: opts.model,
-    input_tokens: opts.inputTokens,
-    output_tokens: opts.outputTokens,
-    cost_usd: costUsd(opts.model, opts.inputTokens, opts.outputTokens),
-  });
+  const pool = db();
+  if (!pool) return;
+  await pool.query(
+    `insert into ai_calls (user_id, feature, model, input_tokens, output_tokens, cost_usd)
+     values ($1, $2, $3, $4, $5, $6)`,
+    [
+      opts.userId,
+      opts.feature,
+      opts.model,
+      opts.inputTokens,
+      opts.outputTokens,
+      costUsd(opts.model, opts.inputTokens, opts.outputTokens),
+    ],
+  );
 }
 
 /** Rehydrate today's tally from the table on boot, so restarts don't reset the cap. */
 export async function hydrateTally(): Promise<void> {
-  const db = serviceDb();
-  if (!db) return;
-  const start = `${todayUtc()}T00:00:00Z`;
-  const { data } = await db
-    .from('ai_calls')
-    .select('input_tokens, output_tokens')
-    .gte('at', start);
-  if (!data) return;
-  tallyDay = todayUtc();
-  tallyTokens = data.reduce(
-    (s, r) => s + (r.input_tokens ?? 0) + (r.output_tokens ?? 0),
-    0,
+  const pool = db();
+  if (!pool) return;
+  const { rows } = await pool.query(
+    `select coalesce(sum(input_tokens + output_tokens), 0) as total
+     from ai_calls where at >= $1`,
+    [`${todayUtc()}T00:00:00Z`],
   );
+  tallyDay = todayUtc();
+  tallyTokens = Number(rows[0]?.total ?? 0);
 }

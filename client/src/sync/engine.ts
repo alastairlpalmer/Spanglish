@@ -1,36 +1,61 @@
-// Sync engine: IndexedDB is the working store; Supabase is durability.
-// Push dirty rows, pull by keyset cursor (updated_at, id). LWW on updated_at
-// for mutable tables; sessions and error_examples are append-only — insert
-// with ignoreDuplicates, never overwrite. Losing logged hours to a sync race
-// would undermine the app's only honest metric.
+// Sync engine: IndexedDB is the working store; the server (Postgres) is
+// durability. Push dirty rows via /api/sync/push, pull by updated_at cursor
+// via /api/sync/pull. LWW on updated_at for mutable tables; sessions and
+// error_examples are append-only — the server inserts with ON CONFLICT DO
+// NOTHING, and the client never overwrites an existing local row. Losing
+// logged hours to a sync race would undermine the app's only honest metric.
 
 import { db, getMeta, setMeta, type Synced } from '../db/dexie';
-import { LOCAL_MODE, supabase, currentUserId } from '../lib/supabase';
+import { storedToken } from '../lib/auth';
 
 interface TableConfig {
   name: 'profile' | 'sessions' | 'cards' | 'error_concepts' | 'error_examples' | 'plans';
   appendOnly: boolean;
   /** Dexie primary key extractor, for dedupe + conflict checks. */
   key: (row: Record<string, unknown>) => string | [string, string];
-  conflict: string; // Postgres upsert conflict target
+  /** Columns the server sends back as Date-typed; normalised to ISO strings.
+   *  updated_at is always normalised. */
+  dateColumns: string[];
+  /** Date-only columns (Postgres `date`) — normalised to YYYY-MM-DD. */
+  dayColumns: string[];
 }
 
 const TABLES: TableConfig[] = [
-  { name: 'profile', appendOnly: false, key: (r) => r.user_id as string, conflict: 'user_id' },
-  { name: 'sessions', appendOnly: true, key: (r) => r.id as string, conflict: 'id' },
-  { name: 'cards', appendOnly: false, key: (r) => r.id as string, conflict: 'id' },
+  {
+    name: 'profile',
+    appendOnly: false,
+    key: (r) => r.user_id as string,
+    dateColumns: ['started_at'],
+    dayColumns: ['target_date'],
+  },
+  { name: 'sessions', appendOnly: true, key: (r) => r.id as string, dateColumns: ['at'], dayColumns: [] },
+  {
+    name: 'cards',
+    appendOnly: false,
+    key: (r) => r.id as string,
+    dateColumns: ['due', 'deleted_at'],
+    dayColumns: [],
+  },
   {
     name: 'error_concepts',
     appendOnly: false,
     key: (r) => [r.user_id as string, r.concept as string],
-    conflict: 'user_id,concept',
+    dateColumns: ['first_seen', 'last_seen'],
+    dayColumns: [],
   },
-  { name: 'error_examples', appendOnly: true, key: (r) => r.id as string, conflict: 'id' },
+  {
+    name: 'error_examples',
+    appendOnly: true,
+    key: (r) => r.id as string,
+    dateColumns: ['at'],
+    dayColumns: [],
+  },
   {
     name: 'plans',
     appendOnly: false,
     key: (r) => [r.user_id as string, r.date as string],
-    conflict: 'user_id,date',
+    dateColumns: ['completed_at'],
+    dayColumns: ['date'],
   },
 ];
 
@@ -39,14 +64,12 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Debounced sync request — call after any write. Safe to call constantly. */
 export function requestSync(): void {
-  if (LOCAL_MODE) return;
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => void runSync(), 3000);
 }
 
 /** Immediate sync — app start, reconnect, visible, post-session-commit. */
 export async function runSync(): Promise<void> {
-  if (LOCAL_MODE) return;
   if (inFlight) return inFlight;
   inFlight = doSync().finally(() => {
     inFlight = null;
@@ -54,15 +77,26 @@ export async function runSync(): Promise<void> {
   return inFlight;
 }
 
-async function doSync(): Promise<void> {
-  const client = supabase();
-  const userId = await currentUserId();
-  if (!client || !userId) return; // signed out: local data stays, sync pauses
+async function syncApi<T>(path: string, body: unknown): Promise<T | null> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${storedToken()}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 503) return null; // server has no database configured
+  if (!res.ok) throw new Error(`sync ${res.status}`);
+  return (await res.json()) as T;
+}
 
+async function doSync(): Promise<void> {
   for (const table of TABLES) {
     try {
-      await pushTable(table);
-      await pullTable(table, userId);
+      const pushed = await pushTable(table);
+      if (pushed === 'no_database') return; // dev without DB: stay local
+      await pullTable(table);
     } catch {
       // Network or auth failure: leave rows dirty, try again next trigger.
       return;
@@ -70,13 +104,12 @@ async function doSync(): Promise<void> {
   }
 }
 
-async function pushTable(table: TableConfig): Promise<void> {
-  const client = supabase()!;
+async function pushTable(table: TableConfig): Promise<'ok' | 'no_database'> {
   const dexieTable = db[table.name];
   const dirty = (await dexieTable.where('dirty').equals(1).toArray()) as unknown as Array<
     Synced<Record<string, unknown>>
   >;
-  if (dirty.length === 0) return;
+  if (dirty.length === 0) return 'ok';
 
   // Snapshot updated_at so a mid-flight edit keeps its dirty flag.
   const snapshots = new Map<string, string>();
@@ -86,11 +119,11 @@ async function pushTable(table: TableConfig): Promise<void> {
     return clean;
   });
 
-  const query = client.from(table.name);
-  const { error } = table.appendOnly
-    ? await query.upsert(rows, { onConflict: table.conflict, ignoreDuplicates: true })
-    : await query.upsert(rows, { onConflict: table.conflict });
-  if (error) throw error;
+  const result = await syncApi<{ ok: boolean }>('/api/sync/push', {
+    table: table.name,
+    rows,
+  });
+  if (result === null) return 'no_database';
 
   await db.transaction('rw', dexieTable, async () => {
     for (const row of dirty) {
@@ -103,30 +136,37 @@ async function pushTable(table: TableConfig): Promise<void> {
       }
     }
   });
+  return 'ok';
 }
 
-async function pullTable(table: TableConfig, userId: string): Promise<void> {
-  const client = supabase()!;
+function normaliseRow(table: TableConfig, row: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...row };
+  for (const col of ['updated_at', ...table.dateColumns]) {
+    const v = out[col];
+    if (typeof v === 'string' && v.length > 0) out[col] = new Date(v).toISOString();
+  }
+  for (const col of table.dayColumns) {
+    const v = out[col];
+    if (typeof v === 'string' && v.length >= 10) out[col] = v.slice(0, 10);
+  }
+  return out;
+}
+
+async function pullTable(table: TableConfig): Promise<void> {
   const dexieTable = db[table.name];
   const cursorKey = `pull:${table.name}`;
-  const rawCursor = await getMeta(cursorKey);
-  const cursor = rawCursor ? (JSON.parse(rawCursor) as { u: string; id: string }) : null;
+  let cursor = await getMeta(cursorKey);
 
   for (;;) {
-    let query = client
-      .from(table.name)
-      .select('*')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: true })
-      .limit(500);
-    if (cursor) query = query.gt('updated_at', cursor.u);
-
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data || data.length === 0) return;
+    const result = await syncApi<{ rows: Array<Record<string, unknown>> }>('/api/sync/pull', {
+      table: table.name,
+      cursor,
+    });
+    if (result === null || result.rows.length === 0) return;
 
     await db.transaction('rw', dexieTable, async () => {
-      for (const remote of data as Array<Record<string, unknown>>) {
+      for (const raw of result.rows) {
+        const remote = normaliseRow(table, raw);
         const key = table.key(remote);
         const local = (await dexieTable.get(key as never)) as
           | Synced<Record<string, unknown>>
@@ -147,18 +187,15 @@ async function pullTable(table: TableConfig, userId: string): Promise<void> {
       }
     });
 
-    const last = data[data.length - 1] as Record<string, unknown>;
-    await setMeta(
-      cursorKey,
-      JSON.stringify({ u: last.updated_at as string, id: String(table.key(last)) }),
-    );
-    if (data.length < 500) return;
+    const last = result.rows[result.rows.length - 1]!;
+    cursor = new Date(last.updated_at as string).toISOString();
+    await setMeta(cursorKey, cursor);
+    if (result.rows.length < 500) return;
   }
 }
 
 /** Wire global triggers once at app start. */
 export function initSyncTriggers(): void {
-  if (LOCAL_MODE) return;
   void runSync();
   window.addEventListener('online', () => void runSync());
   document.addEventListener('visibilitychange', () => {

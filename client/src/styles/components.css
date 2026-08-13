@@ -476,6 +476,129 @@
   margin-top: 2px;
 }
 
+/* --- reading room ---
+   The one place the app inverts: light surface, serif body, narrow measure.
+   Physically marks reading as a different mode of attention. */
+.reading-room {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: var(--reading-ground);
+  color: var(--reading-ink);
+  overflow-y: auto;
+  animation: room-fade 400ms ease;
+  -webkit-font-smoothing: auto;
+}
+
+@keyframes room-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reading-inner {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 20px) 24px calc(env(safe-area-inset-bottom) + 40px);
+}
+
+.reading-inner .reading-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #5a6676;
+}
+
+.reading-inner .reading-bar button {
+  color: #5a6676;
+  min-height: var(--touch);
+  padding: 8px;
+}
+
+.reading-inner h2 {
+  font-family: 'Literata', Georgia, 'Iowan Old Style', serif;
+  font-size: 26px;
+  line-height: 1.25;
+  margin-bottom: 6px;
+  color: var(--reading-ink);
+}
+
+.reading-inner .reading-source {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #5a6676;
+  margin-bottom: 20px;
+}
+
+.reading-body {
+  font-family: 'Literata', Georgia, 'Iowan Old Style', serif;
+  font-size: var(--reading-size, 19px);
+  line-height: 1.65;
+  color: var(--reading-ink);
+}
+
+.reading-body .glossed {
+  border-bottom: 1px dotted #b08427;
+  cursor: pointer;
+}
+
+.reading-controls {
+  display: flex;
+  gap: 8px;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
+
+.reading-controls button {
+  min-height: var(--touch);
+  padding: 8px 14px;
+  border: 1px solid #c4ccd8;
+  border-radius: var(--radius-button);
+  background: #f4f6fa;
+  color: var(--reading-ink);
+  font-size: 14px;
+}
+
+.reading-room textarea {
+  background: #f4f6fa;
+  color: var(--reading-ink);
+  border-color: #c4ccd8;
+  min-height: 110px;
+  resize: vertical;
+}
+
+.reading-feedback {
+  font-size: 15px;
+  line-height: 1.5;
+  border-left: 3px solid var(--clay);
+  padding-left: 12px;
+  margin-top: 12px;
+}
+
+/* gloss sheet inside the reading room keeps the light surface */
+.gloss-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--max-col);
+  background: #f4f6fa;
+  color: var(--reading-ink);
+  border-top: 1px solid #c4ccd8;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  padding: 20px 20px calc(env(safe-area-inset-bottom) + 20px);
+  z-index: 31;
+}
+
+.gloss-sheet .word {
+  font-family: 'Literata', Georgia, serif;
+  font-size: 20px;
+  color: #b08427;
+}
+
 /* --- misc --- */
 .offline-banner {
   font-family: var(--font-mono);

@@ -8,6 +8,8 @@ import { migrate } from './db.js';
 import { hydrateTally } from './ai/usage.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerSyncRoutes } from './sync/routes.js';
+import { registerArticleRoute } from './ai/routes/article.js';
+import { registerTranslateRoute } from './ai/routes/translate.js';
 import { registerCardsRoute } from './ai/routes/cards.js';
 import { registerCheckRoute } from './ai/routes/check.js';
 import { registerTalkRoute } from './ai/routes/talk.js';
@@ -24,6 +26,8 @@ app.get('/api/health', async () => ({
 
 registerAuthRoutes(app);
 registerSyncRoutes(app);
+registerArticleRoute(app);
+registerTranslateRoute(app);
 registerCardsRoute(app);
 registerCheckRoute(app);
 registerTalkRoute(app);

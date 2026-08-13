@@ -27,6 +27,17 @@ export interface PendingCheck {
   at: string;
 }
 
+// Cached news articles — client-side only, never synced (disposable).
+export interface CachedArticle {
+  id: string;
+  headline: string;
+  body: string;
+  source: string;
+  gloss: Array<{ word: string; meaning: string }>;
+  fetched_at: string;
+  read_at: string | null;
+}
+
 export class SeisDb extends Dexie {
   profile!: Table<Synced<Profile>, string>;
   sessions!: Table<Synced<Session>, string>;
@@ -36,6 +47,7 @@ export class SeisDb extends Dexie {
   plans!: Table<Synced<Plan>, [string, string]>;
   meta!: Table<MetaRow, string>;
   pending_checks!: Table<PendingCheck, string>;
+  articles!: Table<CachedArticle, string>;
 
   constructor() {
     super('seiscientas');
@@ -48,6 +60,9 @@ export class SeisDb extends Dexie {
       plans: '[user_id+date], date, dirty',
       meta: 'key',
       pending_checks: 'id, at',
+    });
+    this.version(2).stores({
+      articles: 'id, fetched_at',
     });
   }
 }

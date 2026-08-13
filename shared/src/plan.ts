@@ -36,6 +36,14 @@ export function composePlan(input: ComposePlanInput): ComposedPlan {
 
   let remaining = budget - cardsMinutes;
 
+  // Read is a once-daily block. It only fits when the day has room for it
+  // alongside a real talk block — reduced re-entry days skip it.
+  if (!reduced && remaining >= 25) {
+    const readMinutes = Math.min(12, Math.round(remaining * 0.3));
+    blocks.push({ type: 'read', label: 'Read the news', minutes: readMinutes });
+    remaining -= readMinutes;
+  }
+
   // Talk takes the bulk of the remainder. In quiet mode it still appears —
   // typed conversation is a real session — but capped smaller.
   const talkMinutes = input.quietMode

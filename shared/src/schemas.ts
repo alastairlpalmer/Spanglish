@@ -69,6 +69,32 @@ export const reviewResponseSchema = z.object({
   worstHabit: z.string().nullable(),
 });
 
+// ---- /api/ai/article ----
+export const articleRequestSchema = z.object({
+  topic: z.string().max(120).optional(),
+  level: z.string(),
+  country: z.string().nullable(),
+});
+export const glossEntrySchema = z.object({
+  word: z.string().min(1),
+  meaning: z.string().min(1),
+});
+export const articleResponseSchema = z.object({
+  headline: z.string().min(1),
+  body: z.string().min(50),
+  source: z.string().min(1),
+  gloss: z.array(glossEntrySchema).min(6).max(20),
+});
+
+// ---- /api/ai/translate (Read's translation practice) ----
+export const translateRequestSchema = z.object({
+  body: z.string().min(1),
+  attempt: z.string().min(1).max(2000),
+});
+export const translateResponseSchema = z.object({
+  feedback: z.string().min(1),
+});
+
 // ---- /api/ai/drill (stub for MVP; schema fixed now so step 8 is additive) ----
 export const drillRequestSchema = z.object({
   concept: conceptSchema,
@@ -84,6 +110,11 @@ export const drillResponseSchema = z.object({
   cards: z.array(drillCardSchema).length(8),
 });
 
+export type ArticleRequest = z.infer<typeof articleRequestSchema>;
+export type ArticleResponse = z.infer<typeof articleResponseSchema>;
+export type GlossEntry = z.infer<typeof glossEntrySchema>;
+export type TranslateRequest = z.infer<typeof translateRequestSchema>;
+export type TranslateResponse = z.infer<typeof translateResponseSchema>;
 export type CardsRequest = z.infer<typeof cardsRequestSchema>;
 export type CardsResponse = z.infer<typeof cardsResponseSchema>;
 export type CheckRequest = z.infer<typeof checkRequestSchema>;

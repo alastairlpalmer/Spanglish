@@ -1,7 +1,13 @@
 // Canned outputs for AI_MOCK mode. Every fixture passes the same zod schemas
 // as live output, so client code is identical in both modes.
 
-import type { CardsResponse, CheckResponse, ReviewResponse } from '@seiscientas/shared';
+import type {
+  ArticleResponse,
+  CardsResponse,
+  CheckResponse,
+  ReviewResponse,
+  TranslateResponse,
+} from '@seiscientas/shared';
 
 export const mockCards: CardsResponse = {
   cards: [
@@ -35,6 +41,32 @@ export const mockTalkReplies: string[] = [
   'Entiendo. Oye, ¿y para cuándo necesitas entrar en el piso?',
   'Perfecto, eso nos da margen. ¿Tienes nómina o aval? Es que el casero lo pide.',
 ];
+
+export const mockArticle: ArticleResponse = {
+  headline: 'La ciudad estrena una nueva línea de metro tras años de obras',
+  body: 'Después de casi seis años de obras, la ciudad inauguró ayer una nueva línea de metro que conecta el aeropuerto con el centro. Miles de personas hicieron cola desde temprano para subir a los primeros trenes. El trayecto completo dura veinticinco minutos, la mitad del tiempo que tomaba en autobús. Las autoridades esperan que la línea reduzca el tráfico en las avenidas principales, que suelen estar colapsadas en hora punta. Sin embargo, algunos vecinos se quejan del precio del billete, que subió con la apertura. Los comerciantes cerca de las nuevas estaciones, en cambio, celebran la llegada de más clientes. Durante el primer mes, el gobierno ofrecerá descuentos para animar a la gente a dejar el coche en casa.',
+  source: 'El País',
+  gloss: [
+    { word: 'estrena', meaning: 'debuts, opens for the first time' },
+    { word: 'obras', meaning: 'construction works' },
+    { word: 'inauguró', meaning: 'inaugurated' },
+    { word: 'hicieron cola', meaning: 'queued up' },
+    { word: 'trayecto', meaning: 'journey, route' },
+    { word: 'autoridades', meaning: 'authorities' },
+    { word: 'colapsadas', meaning: 'gridlocked' },
+    { word: 'hora punta', meaning: 'rush hour' },
+    { word: 'vecinos', meaning: 'residents, neighbours' },
+    { word: 'se quejan', meaning: 'complain' },
+    { word: 'billete', meaning: 'ticket' },
+    { word: 'comerciantes', meaning: 'shopkeepers' },
+    { word: 'animar', meaning: 'to encourage' },
+  ],
+};
+
+export const mockTranslate: TranslateResponse = {
+  feedback:
+    'You missed "la mitad del tiempo" — it means half the time, not "less time". "Se quejan del precio" is complain about the price; you wrote "worry about", which is softer than the Spanish. "En cambio" marks contrast (on the other hand) and you dropped it, so your version loses the shopkeepers-versus-residents structure. The rest carries the meaning accurately.',
+};
 
 export const mockReview: ReviewResponse = {
   errors: [

@@ -10,7 +10,15 @@ describe('composePlan', () => {
     const total = blocks.reduce((s, b) => s + b.minutes, 0);
     expect(total).toBe(60);
     expect(blocks[0]!.type).toBe('cards');
+    expect(blocks.some((b) => b.type === 'read')).toBe(true);
     expect(blocks.some((b) => b.type === 'talk')).toBe(true);
+  });
+
+  it('skips the read block on reduced re-entry days', () => {
+    const { blocks } = composePlan({
+      dailyMinutes: 60, dueCardCount: 40, daysSinceLastActive: 5, quietMode: false,
+    });
+    expect(blocks.some((b) => b.type === 'read')).toBe(false);
   });
 
   it('halves the budget after a 3+ day break (min 15)', () => {

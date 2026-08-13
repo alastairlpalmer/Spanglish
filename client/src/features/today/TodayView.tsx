@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useToday } from './useToday';
 import { useProfile } from '../../shell/ProfileContext';
 import { Ring } from '../../components/Ring';
+import { ReadView } from '../read/ReadView';
 import type { Tab } from '../../shell/TabBar';
 import { formatDate } from '../../lib/time';
 
@@ -21,6 +22,19 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   const { profile } = useProfile();
   const today = useToday(userId);
   const [keepGoing, setKeepGoing] = useState(false);
+  const [reading, setReading] = useState(false);
+
+  if (reading) {
+    return (
+      <ReadView
+        userId={userId}
+        onClose={() => {
+          setReading(false);
+          void today.refresh();
+        }}
+      />
+    );
+  }
 
   if (!today.plan) return <p className="muted">composing the day</p>;
 
@@ -40,6 +54,7 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
   function goFor(type: string): void {
     if (type === 'cards' || type === 'drill') onGo('cards');
     else if (type === 'talk') onGo('talk');
+    else if (type === 'read') setReading(true);
   }
 
   if (done && !keepGoing) {

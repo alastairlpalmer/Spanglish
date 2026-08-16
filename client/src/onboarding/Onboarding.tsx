@@ -52,6 +52,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       text_size: 100,
       onboarded: true,
       converted_prompt_shown: false,
+      extra_buckets: null,
     });
     onDone();
   }

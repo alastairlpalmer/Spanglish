@@ -693,6 +693,56 @@
   background: var(--ochre);
 }
 
+/* --- bucket board --- */
+.bucket-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 0;
+  min-height: var(--touch);
+}
+
+.bucket-row .row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.bucket-row .name {
+  font-size: 14px;
+  color: var(--paper);
+}
+
+.bucket-row .counts {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* two-tone mastery bar: solid = mastered, faint = in progress */
+.mastery-bar {
+  position: relative;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mastery-bar .learning {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--line);
+  border-radius: 2px;
+}
+
+.mastery-bar .mastered {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ochre);
+  border-radius: 2px;
+}
+
 /* --- diary starters (beginner scaffolding) --- */
 .starter-group {
   display: flex;

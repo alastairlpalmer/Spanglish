@@ -84,6 +84,12 @@ export class SeisDb extends Dexie {
       episodes: 'id, date, n',
       diary: 'id, at, dirty, updated_at',
     });
+    // Bucket index for the vocabulary board. No upgrade fn: legacy rows keep
+    // bucket undefined — the "general" pseudo-bucket, invisible to this index
+    // by design (general uses counts, never a bucket query).
+    this.version(4).stores({
+      cards: 'id, due, dirty, updated_at, concept, bucket',
+    });
   }
 }
 

@@ -20,7 +20,7 @@ const TABLES: Record<string, TableConfig> = {
     columns: [
       'level', 'dialect', 'country', 'started_at', 'target_date', 'target_kind',
       'target_history', 'daily_minutes', 'quiet_mode', 'text_size', 'onboarded',
-      'converted_prompt_shown', 'updated_at',
+      'converted_prompt_shown', 'extra_buckets', 'updated_at',
     ],
     conflict: ['user_id'],
     appendOnly: false,
@@ -32,7 +32,7 @@ const TABLES: Record<string, TableConfig> = {
   },
   cards: {
     columns: [
-      'id', 'direction', 'es', 'en', 'word', 'word_en', 'note', 'prompt', 'answer',
+      'id', 'direction', 'bucket', 'es', 'en', 'word', 'word_en', 'note', 'prompt', 'answer',
       'accepts', 'concept', 'source', 'step', 'due', 'seen', 'deleted_at', 'updated_at',
     ],
     conflict: ['id'],

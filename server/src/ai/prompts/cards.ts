@@ -1,5 +1,5 @@
 import type { CardsRequest } from '@seiscientas/shared';
-import { isBeginner } from '@seiscientas/shared';
+import { BUCKET_DEFS, isBeginner } from '@seiscientas/shared';
 
 export function cardsSystemPrompt(count: number): string {
   return `You generate Spanish flashcards for a serious adult learner. Return ONLY a JSON object, no preamble, no markdown fences.
@@ -16,7 +16,13 @@ Output shape:
 }
 
 export function cardsUserPrompt(req: CardsRequest): string {
-  const topic = req.topic ? `Topic: ${req.topic}` : 'Topic: high-frequency everyday vocabulary';
+  // A bucket's curated hint beats free topic text — it defines the life area
+  // the words must come from.
+  const topic = req.bucket
+    ? `Topic: ${BUCKET_DEFS[req.bucket].hint}. Choose the most useful, most frequent words in this area.`
+    : req.topic
+      ? `Topic: ${req.topic}`
+      : 'Topic: high-frequency everyday vocabulary';
   const exclude = req.exclude.length
     ? `Do not use these target words (already known): ${req.exclude.join(', ')}`
     : '';

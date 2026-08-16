@@ -26,6 +26,8 @@ export interface Profile {
   text_size: number;
   onboarded: boolean;
   converted_prompt_shown: boolean;
+  // Activated interest buckets (sports/tech/...). Null on legacy rows.
+  extra_buckets: string[] | null;
   updated_at: string;
 }
 
@@ -43,6 +45,9 @@ export interface Card {
   id: string;
   user_id: string;
   direction: CardDirection;
+  // string, not BucketSlug: synced rows must survive a renamed/removed slug
+  // and the future sentences bucket. UI narrows with isBucketSlug.
+  bucket: string | null;
   es: string | null;
   en: string | null;
   word: string | null;

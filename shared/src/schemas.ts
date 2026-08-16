@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { CONCEPTS } from './concepts';
+import { BUCKETS } from './buckets';
 
 export const conceptSchema = z.enum(CONCEPTS);
 
 // ---- /api/ai/cards ----
 export const cardsRequestSchema = z.object({
   topic: z.string().max(120).optional(),
+  bucket: z.enum(BUCKETS).optional(),
   level: z.string(),
   dialect: z.string(),
   count: z.number().int().min(8).max(30).default(20),

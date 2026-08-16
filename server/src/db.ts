@@ -120,6 +120,12 @@ create table if not exists diary (
 create index if not exists diary_user_at on diary (user_id, at desc);
 create index if not exists diary_user_updated on diary (user_id, updated_at);
 
+-- Additive columns for existing deployments (CREATE TABLE IF NOT EXISTS
+-- won't touch a table that already exists). Nullable on purpose: a NOT NULL
+-- would wedge pushes from clients running the previous bundle.
+alter table cards add column if not exists bucket text;
+alter table profile add column if not exists extra_buckets text[];
+
 create table if not exists ai_calls (
   id            bigserial primary key,
   user_id       uuid not null,

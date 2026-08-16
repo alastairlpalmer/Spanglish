@@ -1,30 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
-import { isBeginner, scheduleCard } from '@seiscientas/shared';
+// Cards tab: a vocabulary board of life-area buckets over the SM-2 review
+// queue. The mixed due queue stays the primary daily action; buckets are the
+// map of territory taken and the door to getting ahead.
+
+import { useEffect, useMemo, useState } from 'react';
+import type { BucketSlug } from '@seiscientas/shared';
 import { useQueue } from './useQueue';
+import { useBucketStats } from './useBucketStats';
+import { BucketBoard, activeBucketList } from './BucketBoard';
+import { BucketView } from './BucketView';
+import { ReviewQueue } from './ReviewQueue';
 import { generateCards } from './generate';
-import { SwipeCard } from './SwipeCard';
-import { ProductionCard } from './ProductionCard';
 import { initCheckResolution } from './checks';
-import { putCard } from '../../db/repo';
+import { friendlyApiError } from '../../lib/api';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
-import { friendlyApiError } from '../../lib/api';
 
-const prefersReducedMotion = (): boolean =>
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+type Mode = { kind: 'board' } | { kind: 'review' } | { kind: 'bucket'; slug: BucketSlug };
 
 export function CardsView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
   const { queue, loading, refresh } = useQueue(userId);
+  const activeForStats = useMemo(
+    () => activeBucketList(profile.extra_buckets, new Map()),
+    [profile.extra_buckets],
+  );
+  const stats = useBucketStats(userId, activeForStats);
+  // Recompute active list once stats exist so extras with cards always show.
+  const activeBuckets = useMemo(
+    () => activeBucketList(profile.extra_buckets, stats.perBucket),
+    [profile.extra_buckets, stats.perBucket],
+  );
+
+  // Today's cards block should land the learner straight in the queue.
+  const [mode, setMode] = useState<Mode | null>(null);
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [pulse, setPulse] = useState(false);
-  // Review runs in sets of 10: a natural breath every ten cards, with the
-  // remaining count as the honest continue signal.
-  const [gradedInSet, setGradedInSet] = useState(0);
-  const [setBreak, setSetBreak] = useState(false);
-  const reducedMotion = useRef(prefersReducedMotion());
 
   useSessionTimer(userId, 'cards', profile.daily_minutes);
 
@@ -32,26 +43,18 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     initCheckResolution(userId);
   }, [userId]);
 
-  const current = queue[0] ?? null;
+  useEffect(() => {
+    if (mode === null && !loading) {
+      setMode(queue.length > 0 ? { kind: 'review' } : { kind: 'board' });
+    }
+  }, [mode, loading, queue.length]);
 
-  async function grade(g: 'got' | 'miss'): Promise<void> {
-    if (!current) return;
-    const result = scheduleCard(current, g, new Date());
-    await putCard({ ...current, ...result });
-    setPulse(true); // no Vibration API on iOS Safari — 40ms visual pulse instead
-    const graded = gradedInSet + 1;
-    setGradedInSet(graded);
-    if (graded % 10 === 0) setSetBreak(true);
+  async function afterChange(): Promise<void> {
     await refresh();
+    await stats.refresh();
   }
 
-  useEffect(() => {
-    if (!pulse) return;
-    const t = setTimeout(() => setPulse(false), 60);
-    return () => clearTimeout(t);
-  }, [pulse]);
-
-  async function generate(): Promise<void> {
+  async function generateFree(): Promise<void> {
     setGenerating(true);
     setGenError(null);
     try {
@@ -62,7 +65,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         dialect: profile.dialect,
       });
       setTopic('');
-      await refresh();
+      await afterChange();
     } catch (e) {
       setGenError(friendlyApiError(e, 'Generation failed. Retry.'));
     } finally {
@@ -70,85 +73,63 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     }
   }
 
-  if (loading) return <p className="muted">loading queue</p>;
+  if (loading || mode === null) return <p className="muted">loading</p>;
 
-  if (setBreak && current) {
+  if (mode.kind === 'review') {
     return (
       <div className="stack">
-        <div className="panel" style={{ textAlign: 'center' }}>
-          <p className="mono">{gradedInSet} reviewed</p>
-          <p className="muted" style={{ fontSize: 14 }}>
-            {queue.length} still due
-          </p>
+        <div className="row" style={{ minHeight: 0 }}>
+          <span className="eyebrow">daily review</span>
+          <button className="btn quiet" onClick={() => setMode({ kind: 'board' })}>
+            buckets
+          </button>
         </div>
-        <button className="btn primary block" onClick={() => setSetBreak(false)}>
-          Next 10
-        </button>
+        <ReviewQueue
+          userId={userId}
+          queue={queue}
+          refresh={afterChange}
+          onExhausted={() => setMode({ kind: 'board' })}
+        />
       </div>
     );
   }
 
-  if (!current) {
+  if (mode.kind === 'bucket') {
     return (
-      <div className="stack">
-        <div className="empty-state">
-          <p>Queue clear.</p>
-        </div>
-        {online ? (
-          <div className="panel stack">
-            <p className="eyebrow">new cards</p>
-            <input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Topic, or leave blank for high-frequency words"
-            />
-            <button className="btn primary block" disabled={generating} onClick={() => void generate()}>
-              {generating ? 'finding words' : 'Generate 20 cards'}
-            </button>
-            {genError && <p className="error-line">{genError}</p>}
-          </div>
-        ) : (
-          <p className="muted" style={{ textAlign: 'center' }}>
-            Offline — new cards need a connection. The queue itself always works.
-          </p>
-        )}
-      </div>
+      <BucketView
+        userId={userId}
+        slug={mode.slug}
+        online={online}
+        dueCount={queue.length}
+        onBack={() => setMode({ kind: 'board' })}
+        onChanged={afterChange}
+      />
     );
   }
 
   return (
-    <div className={pulse ? 'pulse' : ''}>
-      <p className="queue-count mono">{queue.length} due</p>
-      <div className="card-stage">
-        {current.direction === 'production' ? (
-          <ProductionCard
-            key={current.id}
-            card={current}
-            userId={userId}
-            quietMode={profile.quiet_mode}
-            dialect={profile.dialect}
-            onGrade={(g) => void grade(g)}
+    <div className="stack">
+      <BucketBoard
+        stats={stats}
+        dueCount={queue.length}
+        activeBuckets={activeBuckets}
+        onReview={() => setMode({ kind: 'review' })}
+        onOpenBucket={(slug) => setMode({ kind: 'bucket', slug })}
+      />
+
+      {/* Free-topic generation stays for one-off topics outside the buckets. */}
+      {online && (
+        <div className="panel stack">
+          <p className="eyebrow">free topic</p>
+          <input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Any topic, or leave blank for high-frequency words"
           />
-        ) : (
-          <SwipeCard
-            key={current.id}
-            card={current}
-            quietMode={profile.quiet_mode}
-            dialect={profile.dialect}
-            wordFirst={isBeginner(profile.level)}
-            reducedMotion={reducedMotion.current}
-            onGrade={(g) => void grade(g)}
-          />
-        )}
-      </div>
-      {current.direction === 'recognition' && (
-        <div className="grade-row">
-          <button className="btn" style={{ borderColor: 'var(--clay)' }} onClick={() => void grade('miss')}>
-            Missed it
+          <button className="btn block" disabled={generating} onClick={() => void generateFree()}>
+            {generating ? 'finding words' : 'Generate 20 cards'}
           </button>
-          <button className="btn" style={{ borderColor: 'var(--sage)' }} onClick={() => void grade('got')}>
-            Knew it
-          </button>
+          {genError && <p className="error-line">{genError}</p>}
         </div>
       )}
     </div>

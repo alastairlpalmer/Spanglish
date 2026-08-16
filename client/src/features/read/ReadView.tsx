@@ -349,6 +349,7 @@ export function ReadView({ userId, mode }: { userId: string; mode: 'news' | 'sto
       id: uuid(),
       user_id: userId,
       direction: 'recognition',
+      bucket: null, // mined words are general vocabulary
       es: sentenceFor(piece.body, entry.word),
       en: null,
       word: entry.word,

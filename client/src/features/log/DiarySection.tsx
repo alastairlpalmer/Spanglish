@@ -13,6 +13,7 @@ import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
+import { addWordPair } from '../cards/createCards';
 import { STARTER_GROUPS } from './starters';
 
 interface CheckState {
@@ -36,6 +37,9 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
   const [english, setEnglish] = useState('');
   const [saying, setSaying] = useState(false);
   const [sayError, setSayError] = useState<string | null>(null);
+  // The last cómo-se-dice answer — a word the learner personally needed,
+  // offered to the deck. Highest-value vocabulary in the app.
+  const [lastSay, setLastSay] = useState<{ es: string; en: string; added: boolean } | null>(null);
 
   function append(text: string): void {
     setDraft((d) => {
@@ -56,6 +60,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
         level: profile.level,
       });
       append(res.spanish);
+      setLastSay({ es: res.spanish, en: phrase, added: false });
       setEnglish('');
     } catch (e) {
       setSayError(friendlyApiError(e, 'Could not translate. Retry.'));
@@ -174,6 +179,35 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
             </button>
           </form>
           {sayError && <p className="error-line">{sayError}</p>}
+          {lastSay && (
+            <div className="row" style={{ minHeight: 32, padding: 0 }}>
+              <span style={{ fontSize: 13 }}>
+                <span lang="es" style={{ color: 'var(--ochre)' }}>
+                  {lastSay.es}
+                </span>{' '}
+                <span className="muted">— {lastSay.en}</span>
+              </span>
+              {lastSay.added ? (
+                <span className="mono muted" style={{ fontSize: 11 }}>
+                  in the deck
+                </span>
+              ) : (
+                <button
+                  className="btn quiet"
+                  onClick={() =>
+                    void addWordPair({
+                      userId,
+                      es: lastSay.es,
+                      en: lastSay.en,
+                      note: 'From your diary — a word you needed',
+                    }).then(() => setLastSay({ ...lastSay, added: true }))
+                  }
+                >
+                  add to deck
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       {showVoice && (

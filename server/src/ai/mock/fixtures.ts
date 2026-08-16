@@ -121,4 +121,8 @@ export const mockReview: ReviewResponse = {
     { wrong: 'ayer yo hablo con el casero', right: 'ayer hablé con el casero', why: 'A completed past action takes the preterite.', concept: 'preterite-vs-imperfect' },
   ],
   worstHabit: 'You default to the present tense whenever the past is required — the preterite is missing from your speech entirely.',
+  missingWords: [
+    { es: 'el casero', en: 'the landlord' },
+    { es: 'la fianza', en: 'the deposit' },
+  ],
 };

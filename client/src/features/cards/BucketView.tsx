@@ -1,9 +1,11 @@
 // One bucket: its mastery bar, learn-new-words, review-ahead when the daily
-// queue is clear, and the in-progress word list (hardest first).
+// queue is clear, a listening quiz, and the word list (hardest first) —
+// each word opening a detail sheet with test-me-now.
 
 import { useCallback, useEffect, useState } from 'react';
 import {
   BUCKET_DEFS,
+  MAX_STEP,
   bucketMastery,
   bucketWords,
   type BucketSlug,
@@ -12,11 +14,17 @@ import {
 } from '@seiscientas/shared';
 import { db } from '../../db/dexie';
 import { friendlyApiError } from '../../lib/api';
+import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
+import { synthesisAvailable } from '../../speech/synthesis';
 import { generateCards } from './generate';
+import { ListeningQuiz, type QuizWord } from './ListeningQuiz';
 import { ReviewQueue } from './ReviewQueue';
 
 const AHEAD_DAYS = 7;
+const QUIZ_MIN_WORDS = 4;
+
+const wordKey = (w: string): string => w.trim().toLowerCase();
 
 export function BucketView({
   userId,
@@ -36,22 +44,27 @@ export function BucketView({
   onChanged: () => Promise<void>;
 }): JSX.Element {
   const { profile } = useProfile();
+  const [rows, setRows] = useState<Card[]>([]);
   const [words, setWords] = useState<BucketWord[]>([]);
   const [mastered, setMastered] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
   const [ahead, setAhead] = useState<Card[] | null>(null);
+  const [quiz, setQuiz] = useState(false);
+  const [sheet, setSheet] = useState<string | null>(null); // word key
+  const [test, setTest] = useState<Card[] | null>(null);
 
   const def = BUCKET_DEFS[slug];
 
   const refresh = useCallback(async () => {
-    const rows = await db.cards
+    const all = await db.cards
       .where('bucket')
       .equals(slug)
       .and((c) => c.user_id === userId && c.deleted_at === null)
       .toArray();
-    setWords(bucketWords(rows, slug));
-    setMastered(bucketMastery(rows).get(slug)?.mastered ?? 0);
+    setRows(all);
+    setWords(bucketWords(all, slug));
+    setMastered(bucketMastery(all).get(slug)?.mastered ?? 0);
   }, [slug, userId]);
 
   useEffect(() => {
@@ -109,7 +122,72 @@ export function BucketView({
     );
   }
 
+  // Deliberately outside SM-2: it neither reads nor writes schedule state.
+  if (quiz) {
+    const quizWords: QuizWord[] = [];
+    const seen = new Set<string>();
+    for (const c of rows) {
+      if (c.direction !== 'recognition' || !c.word || !c.word_en) continue;
+      const key = wordKey(c.word);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      quizWords.push({ es: c.word, en: c.word_en });
+    }
+    return (
+      <div className="stack">
+        <div className="row" style={{ minHeight: 0 }}>
+          <span className="eyebrow">by ear — {def.label.toLowerCase()}</span>
+          <button className="btn quiet" onClick={() => setQuiz(false)}>
+            back
+          </button>
+        </div>
+        <ListeningQuiz words={quizWords} dialect={profile.dialect} onClose={() => setQuiz(false)} />
+      </div>
+    );
+  }
+
+  // Test-me-now: this word's live cards, both directions, due ignored.
+  // ReviewQueue always grades queue[0], so refresh just drops the head.
+  if (test !== null) {
+    return (
+      <div className="stack">
+        <div className="row" style={{ minHeight: 0 }}>
+          <span className="eyebrow">test — {test[0]?.word ?? ''}</span>
+          <button
+            className="btn quiet"
+            onClick={() => {
+              setTest(null);
+              void refresh();
+              void onChanged();
+            }}
+          >
+            back
+          </button>
+        </div>
+        <ReviewQueue
+          userId={userId}
+          queue={test}
+          refresh={async () => setTest((q) => (q && q.length > 0 ? q.slice(1) : q))}
+          onExhausted={() => {
+            setTest(null);
+            setSheet(null);
+            void refresh();
+            void onChanged();
+          }}
+        />
+      </div>
+    );
+  }
+
   const inProgress = words.length - mastered;
+  const sheetCards = sheet === null ? [] : rows.filter((c) => c.word && wordKey(c.word) === sheet);
+  const sheetRec = sheetCards.find((c) => c.direction === 'recognition');
+  const sheetProd = sheetCards.find((c) => c.direction === 'production');
+  const quizReady =
+    !profile.quiet_mode &&
+    synthesisAvailable() &&
+    new Set(rows.filter((c) => c.direction === 'recognition' && c.word && c.word_en).map((c) => wordKey(c.word!)))
+      .size >= QUIZ_MIN_WORDS;
 
   return (
     <div className="stack">
@@ -152,6 +230,12 @@ export function BucketView({
       )}
       {genError && <p className="error-line">{genError}</p>}
 
+      {quizReady && (
+        <button className="btn block" onClick={() => setQuiz(true)}>
+          🔊 Quiz by ear
+        </button>
+      )}
+
       {dueCount === 0 && words.length > 0 && (
         <button className="btn block" onClick={() => void loadAhead()}>
           Get ahead — review this bucket early
@@ -160,17 +244,76 @@ export function BucketView({
 
       {words.length > 0 && (
         <div className="panel stack" style={{ gap: 2 }}>
-          <p className="eyebrow">words</p>
+          <p className="eyebrow">words — tap one to inspect it</p>
           {words.map((w) => (
-            <div className="row" key={w.word} style={{ minHeight: 30, padding: '2px 0' }}>
+            <button
+              className="row"
+              key={w.word}
+              onClick={() => setSheet(sheet === wordKey(w.word) ? null : wordKey(w.word))}
+              style={{
+                minHeight: 30,
+                padding: '2px 0',
+                background: 'none',
+                border: 'none',
+                width: '100%',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
               <span lang="es" style={{ fontSize: 14, color: w.mastered ? 'var(--sage)' : 'var(--paper)' }}>
                 {w.word}
               </span>
               <span className="mono muted" style={{ fontSize: 11 }}>
                 {w.mastered ? '✓' : `${w.recognitionStep ?? '–'}·${w.productionStep ?? '–'}`}
               </span>
-            </div>
+            </button>
           ))}
+        </div>
+      )}
+
+      {sheet !== null && sheetCards.length > 0 && (
+        <div className="panel stack" style={{ gap: 8 }}>
+          <div className="row" style={{ minHeight: 0, padding: 0 }}>
+            <span lang="es" style={{ fontSize: 18, color: 'var(--ochre)' }}>
+              {sheetRec?.word ?? sheetProd?.word}
+            </span>
+            <button className="btn quiet" onClick={() => setSheet(null)}>
+              close
+            </button>
+          </div>
+          <p className="muted" style={{ fontSize: 13 }}>
+            {sheetRec?.word_en ?? sheetProd?.word_en}
+          </p>
+          {sheetRec && (
+            <p lang="es" style={{ fontSize: 14, lineHeight: 1.5 }}>
+              {sheetRec.es}
+            </p>
+          )}
+          {sheetRec?.note && (
+            <p className="muted" style={{ fontSize: 13 }}>
+              {sheetRec.note}
+            </p>
+          )}
+          <div className="stack" style={{ gap: 2 }}>
+            {[
+              { label: 'recognise it', card: sheetRec },
+              { label: 'produce it', card: sheetProd },
+            ].map(({ label, card }) => (
+              <div className="row" key={label} style={{ minHeight: 0, padding: 0 }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {label}
+                </span>
+                <span className="mono muted" style={{ fontSize: 12 }}>
+                  {card
+                    ? `step ${card.step}/${MAX_STEP} · due ${formatDate(card.due)}`
+                    : 'no card yet'}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button className="btn block" onClick={() => setTest(sheetCards)}>
+            Test me now
+          </button>
         </div>
       )}
     </div>

@@ -149,7 +149,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
     );
   }
 
-  if (review) return <ReviewStack review={review} onClose={reset} />;
+  if (review) return <ReviewStack review={review} userId={userId} onClose={reset} />;
 
   if (!scenario) {
     return (

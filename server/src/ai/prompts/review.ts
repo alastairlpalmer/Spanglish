@@ -10,10 +10,11 @@ Rules:
 - Classify each error into exactly one slug from this closed list; use "other" if nothing fits — never invent slugs:
 ${CONCEPTS.join(', ')}
 - "worstHabit" is the single pattern costing them most across the conversation, stated in one blunt sentence, or null if nothing stands out.
+- "missingWords" lists up to 5 Spanish words or short phrases the learner visibly lacked: places they switched to English, circumlocuted clumsily, or asked how to say something. Each entry is the word they needed with its English meaning. Empty array if none.
 - If an utterance is fully correct, it produces no entry. An empty errors array is a valid result.
 
 Output shape:
-{"errors":[{"wrong":"...","right":"...","why":"...","concept":"<slug>"}],"worstHabit":"<sentence or null>"}`;
+{"errors":[{"wrong":"...","right":"...","why":"...","concept":"<slug>"}],"worstHabit":"<sentence or null>","missingWords":[{"es":"...","en":"..."}]}`;
 }
 
 export function reviewUserPrompt(req: ReviewRequest): string {

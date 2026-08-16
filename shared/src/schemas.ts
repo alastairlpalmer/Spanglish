@@ -70,6 +70,12 @@ export const reviewErrorSchema = z.object({
 export const reviewResponseSchema = z.object({
   errors: z.array(reviewErrorSchema),
   worstHabit: z.string().nullable(),
+  // Words the learner visibly lacked mid-conversation (said in English,
+  // circumlocuted, or asked for) — the highest-value vocabulary there is.
+  missingWords: z
+    .array(z.object({ es: z.string().min(1), en: z.string().min(1) }))
+    .max(8)
+    .default([]),
 });
 
 // ---- /api/ai/article ----

@@ -31,8 +31,8 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     [profile.extra_buckets, stats.perBucket],
   );
 
-  // Today's cards block should land the learner straight in the queue.
-  const [mode, setMode] = useState<Mode | null>(null);
+  // The board is home; the daily review is one tap ("Review N due").
+  const [mode, setMode] = useState<Mode>({ kind: 'board' });
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -42,12 +42,6 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
   useEffect(() => {
     initCheckResolution(userId);
   }, [userId]);
-
-  useEffect(() => {
-    if (mode === null && !loading) {
-      setMode(queue.length > 0 ? { kind: 'review' } : { kind: 'board' });
-    }
-  }, [mode, loading, queue.length]);
 
   async function afterChange(): Promise<void> {
     await refresh();
@@ -73,7 +67,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     }
   }
 
-  if (loading || mode === null) return <p className="muted">loading</p>;
+  if (loading) return <p className="muted">loading</p>;
 
   if (mode.kind === 'review') {
     return (

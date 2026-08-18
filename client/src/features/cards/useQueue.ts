@@ -10,6 +10,8 @@ export interface QueueState {
   queue: Card[];
   /** Full backlog size, not just the capped window — the honest number. */
   totalDue: number;
+  /** Recognition-only slice of the backlog (the phrase view's population). */
+  totalDueRecognition: number;
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -17,6 +19,7 @@ export interface QueueState {
 export function useQueue(userId: string): QueueState {
   const [queue, setQueue] = useState<Card[]>([]);
   const [totalDue, setTotalDue] = useState(0);
+  const [totalDueRecognition, setTotalDueRecognition] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -28,6 +31,7 @@ export function useQueue(userId: string): QueueState {
       .sortBy('due');
     setQueue(due.slice(0, DAILY_QUEUE_CAP));
     setTotalDue(due.length);
+    setTotalDueRecognition(due.filter((c) => c.direction === 'recognition').length);
     setLoading(false);
   }, [userId]);
 
@@ -35,5 +39,5 @@ export function useQueue(userId: string): QueueState {
     void refresh();
   }, [refresh]);
 
-  return { queue, totalDue, loading, refresh };
+  return { queue, totalDue, totalDueRecognition, loading, refresh };
 }

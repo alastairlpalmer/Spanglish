@@ -18,6 +18,7 @@ export function ReviewQueue({
   userId,
   queue,
   totalDue,
+  sentenceFirst,
   refresh,
   onExhausted,
 }: {
@@ -26,6 +27,8 @@ export function ReviewQueue({
   /** Full backlog behind the capped window; shown as "N of M due" when it
    *  exceeds the window so the count visibly shrinks with every grade. */
   totalDue?: number;
+  /** Phrase mode: always lead with the full sentence, even for beginners. */
+  sentenceFirst?: boolean;
   refresh: () => Promise<void>;
   /** Called when the queue empties (label decides what "done" leads to). */
   onExhausted: () => void;
@@ -98,7 +101,7 @@ export function ReviewQueue({
             card={current}
             quietMode={profile.quiet_mode}
             dialect={profile.dialect}
-            wordFirst={isBeginner(profile.level)}
+            wordFirst={sentenceFirst ? false : isBeginner(profile.level)}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />

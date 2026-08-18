@@ -8,6 +8,7 @@ import { useQueue } from './useQueue';
 import { useBucketStats } from './useBucketStats';
 import { BucketBoard, activeBucketList } from './BucketBoard';
 import { BucketView } from './BucketView';
+import { CognateLab } from './CognateLab';
 import { ReviewQueue } from './ReviewQueue';
 import { generateCards } from './generate';
 import { initCheckResolution } from './checks';
@@ -17,9 +18,13 @@ import { useSessionTimer } from '../../session/useSessionTimer';
 
 type Mode = { kind: 'board' } | { kind: 'review' } | { kind: 'bucket'; slug: BucketSlug };
 
+// Top-level sections: the vocab machine, the Latin cognate lab, and
+// sentence-first phrase review over the same due cards.
+type Section = 'vocab' | 'latinos' | 'frases';
+
 export function CardsView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
-  const { queue, totalDue, loading, refresh } = useQueue(userId);
+  const { queue, totalDue, totalDueRecognition, loading, refresh } = useQueue(userId);
   const activeForStats = useMemo(
     () => activeBucketList(profile.extra_buckets, new Map()),
     [profile.extra_buckets],
@@ -33,6 +38,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
 
   // The board is home; the daily review is one tap ("Review N due").
   const [mode, setMode] = useState<Mode>({ kind: 'board' });
+  const [section, setSection] = useState<Section>('vocab');
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -69,8 +75,9 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
 
   if (loading) return <p className="muted">loading</p>;
 
+  let vocabContent: JSX.Element;
   if (mode.kind === 'review') {
-    return (
+    vocabContent = (
       <div className="stack">
         <div className="row" style={{ minHeight: 0 }}>
           <span className="eyebrow">daily review</span>
@@ -87,10 +94,8 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         />
       </div>
     );
-  }
-
-  if (mode.kind === 'bucket') {
-    return (
+  } else if (mode.kind === 'bucket') {
+    vocabContent = (
       <BucketView
         userId={userId}
         slug={mode.slug}
@@ -100,33 +105,77 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         onChanged={afterChange}
       />
     );
+  } else {
+    vocabContent = (
+      <div className="stack">
+        <BucketBoard
+          stats={stats}
+          dueCount={totalDue}
+          activeBuckets={activeBuckets}
+          onReview={() => setMode({ kind: 'review' })}
+          onOpenBucket={(slug) => setMode({ kind: 'bucket', slug })}
+        />
+
+        {/* Free-topic generation stays for one-off topics outside the buckets. */}
+        {online && (
+          <div className="panel stack">
+            <p className="eyebrow">free topic</p>
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Any topic, or leave blank for high-frequency words"
+            />
+            <button className="btn block" disabled={generating} onClick={() => void generateFree()}>
+              {generating ? 'finding words' : 'Generate 20 cards'}
+            </button>
+            {genError && <p className="error-line">{genError}</p>}
+          </div>
+        )}
+      </div>
+    );
   }
+
+  // Phrase review: the same due cards, recognition side only, always led by
+  // the full sentence. Grading writes to the same scheduler.
+  const phraseQueue = queue.filter((c) => c.direction === 'recognition');
 
   return (
     <div className="stack">
-      <BucketBoard
-        stats={stats}
-        dueCount={totalDue}
-        activeBuckets={activeBuckets}
-        onReview={() => setMode({ kind: 'review' })}
-        onOpenBucket={(slug) => setMode({ kind: 'bucket', slug })}
-      />
-
-      {/* Free-topic generation stays for one-off topics outside the buckets. */}
-      {online && (
-        <div className="panel stack">
-          <p className="eyebrow">free topic</p>
-          <input
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="Any topic, or leave blank for high-frequency words"
-          />
-          <button className="btn block" disabled={generating} onClick={() => void generateFree()}>
-            {generating ? 'finding words' : 'Generate 20 cards'}
+      <div className="segment-row">
+        {(
+          [
+            ['vocab', 'vocabulario'],
+            ['latinos', 'latinos'],
+            ['frases', 'frases'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            className={section === key ? 'active' : ''}
+            onClick={() => setSection(key)}
+          >
+            {label}
           </button>
-          {genError && <p className="error-line">{genError}</p>}
-        </div>
-      )}
+        ))}
+      </div>
+
+      {section === 'vocab' && vocabContent}
+      {section === 'latinos' && <CognateLab userId={userId} />}
+      {section === 'frases' &&
+        (phraseQueue.length === 0 ? (
+          <p className="muted" style={{ fontSize: 14 }}>
+            No phrases due. Sentences come back here when their words do.
+          </p>
+        ) : (
+          <ReviewQueue
+            userId={userId}
+            queue={phraseQueue}
+            totalDue={totalDueRecognition}
+            sentenceFirst
+            refresh={afterChange}
+            onExhausted={() => undefined}
+          />
+        ))}
     </div>
   );
 }

@@ -4,13 +4,15 @@
 // be pushed into the real deck with one tap.
 
 import { useCallback, useEffect, useState } from 'react';
-import { COGNATE_RULES, cognateRule, type CognateRule } from '@seiscientas/shared';
+import { COGNATE_RULES, cognateRule, type CognatePair, type CognateRule } from '@seiscientas/shared';
 import { db } from '../../db/dexie';
 import { useProfile } from '../../shell/ProfileContext';
 import { speak, synthesisAvailable } from '../../speech/synthesis';
 import { localeForDialect } from '../../speech/recognition';
 import { addWordPair } from './createCards';
 import { PowerVerbs } from './PowerVerbs';
+
+const MIX_SIZE = 20;
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -21,28 +23,40 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-function RulePractice({
-  rule,
+/** A practice item carries its rule so mixed sessions can explain each word. */
+interface PracticeItem extends CognatePair {
+  rule: CognateRule;
+}
+
+const ALL_ITEMS: PracticeItem[] = COGNATE_RULES.flatMap((rule) =>
+  rule.words.map((w) => ({ ...w, rule })),
+);
+
+function Practice({
+  items,
+  mixed,
   userId,
   inDeck,
   onDeckChange,
   onClose,
 }: {
-  rule: CognateRule;
+  items: PracticeItem[];
+  /** Mixed sessions show each word's own pattern; single-rule ones already
+   *  have it in the header. */
+  mixed: boolean;
   userId: string;
   inDeck: Set<string>;
   onDeckChange: () => void;
   onClose: () => void;
 }): JSX.Element {
   const { profile } = useProfile();
-  const [order] = useState(() => shuffle(rule.words));
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [got, setGot] = useState(0);
   const [graded, setGraded] = useState(0);
   const [adding, setAdding] = useState(false);
 
-  const current = order[index] ?? null;
+  const current = items[index] ?? null;
   const canSpeak = !profile.quiet_mode && synthesisAvailable();
 
   function grade(hit: boolean): void {
@@ -60,7 +74,9 @@ function RulePractice({
             {got} / {graded}
           </p>
           <p className="muted" style={{ fontSize: 14 }}>
-            {rule.pattern} — the rule does most of the work. Trust it.
+            {mixed
+              ? 'The rules do most of the work across every suffix. Trust them.'
+              : `${items[0]!.rule.pattern} — the rule does most of the work. Trust it.`}
           </p>
         </div>
         <button className="btn primary block" onClick={onClose}>
@@ -73,11 +89,11 @@ function RulePractice({
   return (
     <div className="stack">
       <p className="queue-count mono">
-        {index + 1} / {order.length} · {rule.pattern}
+        {index + 1} / {items.length} · {current.rule.pattern}
       </p>
       {/* The rule rides along during practice — apply it, don't recall it. */}
       <p className="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-        {rule.explanation}
+        {current.rule.explanation}
       </p>
       <div className="panel stack" style={{ textAlign: 'center', gap: 8 }}>
         <p style={{ fontSize: 24 }}>{current.en}</p>
@@ -86,9 +102,9 @@ function RulePractice({
             <p lang="es" style={{ fontSize: 24, color: 'var(--ochre)' }}>
               {current.es}
             </p>
-            {rule.caveat && (
+            {current.rule.caveat && (
               <p className="muted" style={{ fontSize: 12 }}>
-                {rule.caveat}
+                {current.rule.caveat}
               </p>
             )}
           </>
@@ -125,7 +141,7 @@ function RulePractice({
                   userId,
                   es: current.es,
                   en: current.en,
-                  note: `Cognate rule ${rule.pattern}.${rule.caveat ? ` ${rule.caveat}` : ''}`,
+                  note: `Cognate rule ${current.rule.pattern}.${current.rule.caveat ? ` ${current.rule.caveat}` : ''}`,
                 })
                   .then(onDeckChange)
                   .finally(() => setAdding(false));
@@ -145,7 +161,11 @@ function RulePractice({
 
 export function CognateLab({ userId }: { userId: string }): JSX.Element {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
-  const [practicing, setPracticing] = useState(false);
+  // Session items are drawn once when a practice button is tapped, never on
+  // re-render — reshuffling mid-session would swap words underfoot.
+  const [session, setSession] = useState<{ title: string; mixed: boolean; items: PracticeItem[] } | null>(
+    null,
+  );
   // Spanish words (lowercased) already in the deck, to label rows and gate
   // the add button. One indexed-free scan of word values, cheap at this scale.
   const [inDeck, setInDeck] = useState<Set<string>>(new Set());
@@ -163,27 +183,28 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
     void refreshDeck();
   }, [refreshDeck]);
 
-  const rule = openSlug ? cognateRule(openSlug) : undefined;
-
-  if (rule && practicing) {
+  if (session !== null) {
     return (
       <div className="stack">
         <div className="row" style={{ minHeight: 0 }}>
-          <span className="eyebrow">{rule.pattern}</span>
-          <button className="btn quiet" onClick={() => setPracticing(false)}>
+          <span className="eyebrow">{session.title}</span>
+          <button className="btn quiet" onClick={() => setSession(null)}>
             back
           </button>
         </div>
-        <RulePractice
-          rule={rule}
+        <Practice
+          items={session.items}
+          mixed={session.mixed}
           userId={userId}
           inDeck={inDeck}
           onDeckChange={() => void refreshDeck()}
-          onClose={() => setPracticing(false)}
+          onClose={() => setSession(null)}
         />
       </div>
     );
   }
+
+  const rule = openSlug ? cognateRule(openSlug) : undefined;
 
   if (rule) {
     const known = rule.words.filter((w) => inDeck.has(w.es.toLowerCase())).length;
@@ -206,7 +227,16 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
             {rule.words.length} words · {known} in the deck
           </p>
         </div>
-        <button className="btn primary block" onClick={() => setPracticing(true)}>
+        <button
+          className="btn primary block"
+          onClick={() =>
+            setSession({
+              title: rule.pattern,
+              mixed: false,
+              items: shuffle(rule.words.map((w) => ({ ...w, rule }))),
+            })
+          }
+        >
           Practice the rule
         </button>
         <div className="panel stack" style={{ gap: 2 }}>
@@ -239,6 +269,18 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
           own. Learn the rule, not the words — then drive the verbs with a power verb below.
         </p>
       </div>
+      <button
+        className="btn primary block"
+        onClick={() =>
+          setSession({
+            title: 'práctica aleatoria',
+            mixed: true,
+            items: shuffle(ALL_ITEMS).slice(0, MIX_SIZE),
+          })
+        }
+      >
+        Práctica aleatoria — {MIX_SIZE} words, every rule
+      </button>
       <PowerVerbs />
       {COGNATE_RULES.map((r) => {
         const known = r.words.filter((w) => inDeck.has(w.es.toLowerCase())).length;

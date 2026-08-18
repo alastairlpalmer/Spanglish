@@ -9,6 +9,10 @@ export interface ComposePlanInput {
   dueCardCount: number;
   daysSinceLastActive: number; // 0 = active today/yesterday counts handled by caller
   quietMode: boolean;
+  /** CEFR level; at A0/A1 the talk block is capped small — thirty minutes of
+   *  free conversation is a B1 exercise, and an impossible block teaches
+   *  skipping, not Spanish. */
+  level?: string;
 }
 
 export interface ComposedPlan {
@@ -49,7 +53,8 @@ export function composePlan(input: ComposePlanInput): ComposedPlan {
   const talkMinutes = input.quietMode
     ? Math.min(15, Math.max(10, Math.round(remaining * 0.5)))
     : Math.max(10, Math.round(remaining * 0.7));
-  const talk = Math.min(talkMinutes, remaining);
+  const talkCap = input.level !== undefined && isBeginner(input.level) ? 10 : Infinity;
+  const talk = Math.min(talkMinutes, remaining, talkCap);
   if (talk >= 5) {
     blocks.push({ type: 'talk', label: 'Talk', minutes: talk });
     remaining -= talk;

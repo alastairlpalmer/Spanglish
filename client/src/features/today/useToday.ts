@@ -27,7 +27,7 @@ export function useToday(userId: string): TodayState {
   const { profile } = useProfile();
   // Depend on the fields used, not the profile object - object identity
   // changes on every provider reload and would double the full-table scans.
-  const { daily_minutes, quiet_mode, target_date, started_at } = profile;
+  const { daily_minutes, quiet_mode, target_date, started_at, level } = profile;
   const [state, setState] = useState<TodayState>({
     plan: null,
     completion: [],
@@ -77,6 +77,7 @@ export function useToday(userId: string): TodayState {
         dueCardCount: dueCards,
         daysSinceLastActive,
         quietMode: quiet_mode,
+        level,
       });
       reduced = composed.reduced;
       plan = {
@@ -135,7 +136,7 @@ export function useToday(userId: string): TodayState {
       behind,
       refresh,
     });
-  }, [userId, daily_minutes, quiet_mode, target_date, started_at]);
+  }, [userId, daily_minutes, quiet_mode, target_date, started_at, level]);
 
   useEffect(() => {
     void refresh();

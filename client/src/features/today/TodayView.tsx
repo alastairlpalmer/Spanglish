@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { ConceptSlug } from '@seiscientas/shared';
+import type { ConceptSlug, Level } from '@seiscientas/shared';
+import { bucketMastery, isBeginner } from '@seiscientas/shared';
 import { useToday } from './useToday';
 import { useProfile } from '../../shell/ProfileContext';
 import { Ring } from '../../components/Ring';
@@ -21,6 +22,24 @@ interface Digest {
 // day an end. Done state: ring closes, plan collapses, one line, no confetti.
 
 const WEEKLY_BEHIND_KEY = 'behind-shown-week';
+
+// Level progression: the profile level gates every scaffold and gloss density,
+// but nothing ever suggested moving it — set once at onboarding, frozen
+// forever. These thresholds turn the app's own signals into a nudge.
+const NEXT_LEVEL: Partial<Record<Level, Level>> = { A0: 'A1', A1: 'A2', A2: 'B1', B1: 'B2' };
+const LEVEL_LABEL: Record<Level, string> = {
+  A0: 'None',
+  A1: 'Beginnings',
+  A2: 'Basics',
+  B1: 'Conversational',
+  B2: 'Comfortable',
+};
+const LEVEL_UP_AT: Partial<Record<Level, { hours: number; mastered: number }>> = {
+  A0: { hours: 10, mastered: 50 },
+  A1: { hours: 25, mastered: 100 },
+  A2: { hours: 70, mastered: 400 },
+  B1: { hours: 140, mastered: 800 },
+};
 
 function weekKey(): string {
   const d = new Date();
@@ -44,6 +63,44 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
     if (drilling) return; // refresh when the drill closes, not while it runs
     void weakConcepts(userId, 1).then((w) => setDrillTarget(w[0] ?? null));
   }, [userId, drilling]);
+
+  // Live due count for the Cards block: the plan is composed once per day,
+  // but the queue moves all day — the label should not lie.
+  const [dueNow, setDueNow] = useState(0);
+  useEffect(() => {
+    void db.cards
+      .where('due')
+      .belowOrEqual(new Date().toISOString())
+      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .count()
+      .then(setDueNow);
+  }, [userId, today.minutesToday]);
+
+  // Level-up nudge: hours + mastered words crossing the next level's bar.
+  const [levelUp, setLevelUp] = useState<{ next: Level; hours: number; mastered: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    const next = NEXT_LEVEL[profile.level];
+    const bar = LEVEL_UP_AT[profile.level];
+    if (!next || !bar) return;
+    if (localStorage.getItem(`levelup-dismissed-${profile.level}`)) return;
+    void (async () => {
+      const sessions = await db.sessions
+        .where('at')
+        .aboveOrEqual('')
+        .and((s) => s.user_id === userId)
+        .toArray();
+      const hours = sessions.reduce((sum, s) => sum + s.minutes, 0) / 60;
+      if (hours < bar.hours) return;
+      const cards = await db.cards
+        .filter((c) => c.user_id === userId && c.deleted_at === null)
+        .toArray();
+      let mastered = 0;
+      for (const p of bucketMastery(cards).values()) mastered += p.mastered;
+      if (mastered >= bar.mastered) setLevelUp({ next, hours, mastered });
+    })();
+  }, [userId, profile.level]);
 
   // Weekly digest: first open each week, one factual card — hours banked,
   // error direction, this week's focus. Instrument voice, no praise.
@@ -143,6 +200,40 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
 
   return (
     <div className="stack">
+      {levelUp && (
+        <div className="panel stack">
+          <p className="eyebrow">level check</p>
+          <p style={{ fontSize: 14 }}>
+            Your numbers look like {LEVEL_LABEL[levelUp.next]}:{' '}
+            <span className="mono">{levelUp.hours.toFixed(0)} h</span> banked,{' '}
+            <span className="mono">{levelUp.mastered}</span> words confident both ways. Moving up
+            fades the scaffolding and makes texts richer.
+          </p>
+          <div className="row" style={{ gap: 8, padding: 0 }}>
+            <button
+              className="btn"
+              style={{ flex: 1, borderColor: 'var(--ochre)' }}
+              onClick={() => {
+                void profileUpdate({ level: levelUp.next });
+                setLevelUp(null);
+              }}
+            >
+              Move to {LEVEL_LABEL[levelUp.next]}
+            </button>
+            <button
+              className="btn quiet"
+              style={{ flex: 1 }}
+              onClick={() => {
+                localStorage.setItem(`levelup-dismissed-${profile.level}`, '1');
+                setLevelUp(null);
+              }}
+            >
+              not yet
+            </button>
+          </div>
+        </div>
+      )}
+
       {digest && (
         <div className="panel stack">
           <p className="eyebrow">last week</p>
@@ -233,6 +324,16 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
               <span className="plan-mark">{isDone ? '✓' : '○'}</span>
               <span className="plan-label">
                 {block.type === 'drill' && drillTarget ? `Drill: ${drillTarget}` : block.label}
+                {block.type === 'cards' && dueNow > 0 && !isDone && (
+                  <span className="muted mono" style={{ fontSize: 11, marginLeft: 6 }}>
+                    · {dueNow} due
+                  </span>
+                )}
+                {block.type === 'talk' && isBeginner(profile.level) && !isDone && (
+                  <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>
+                    · goal: three exchanges
+                  </span>
+                )}
               </span>
               <span className="plan-minutes">{block.minutes} min</span>
             </button>

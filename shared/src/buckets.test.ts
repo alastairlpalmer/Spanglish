@@ -5,10 +5,13 @@ import {
   CORE_BUCKETS,
   EXTRA_BUCKETS,
   MASTERY_STEP,
+  RECOMMENDED_PATH,
   bucketMastery,
   bucketWords,
   isBucketSlug,
+  nextRecommendedBucket,
   type BucketCardRow,
+  type BucketProgress,
 } from './buckets';
 
 const row = (over: Partial<BucketCardRow>): BucketCardRow => ({
@@ -125,5 +128,32 @@ describe('bucketWords', () => {
       row({ word: 'mesa' }),
     ];
     expect(bucketWords(rows, 'home').map((w) => w.word)).toEqual(['mesa']);
+  });
+});
+
+describe('recommended path', () => {
+  it('covers exactly the core buckets, each once', () => {
+    expect([...RECOMMENDED_PATH].sort()).toEqual([...CORE_BUCKETS].sort());
+  });
+
+  it('points at the first bucket without a first batch', () => {
+    const per = new Map<string | null, BucketProgress>([
+      ['conversation-basics', { mastered: 5, inProgress: 20 }],
+    ]);
+    expect(nextRecommendedBucket(per)).toBe('core-verbs');
+  });
+
+  it('falls back to the first bucket short of target when all are started', () => {
+    const per = new Map<string | null, BucketProgress>(
+      RECOMMENDED_PATH.map((slug) => [slug, { mastered: 30, inProgress: 10 }]),
+    );
+    expect(nextRecommendedBucket(per)).toBe('conversation-basics');
+  });
+
+  it('returns null when everything is mastered', () => {
+    const per = new Map<string | null, BucketProgress>(
+      RECOMMENDED_PATH.map((slug) => [slug, { mastered: 100, inProgress: 0 }]),
+    );
+    expect(nextRecommendedBucket(per)).toBeNull();
   });
 });

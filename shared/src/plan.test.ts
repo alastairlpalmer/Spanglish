@@ -61,6 +61,23 @@ describe('composePlan', () => {
     expect(talk).toBeDefined();
     expect(talk!.minutes).toBeLessThanOrEqual(15);
   });
+
+  it('caps talk at 10 minutes for beginners and still totals the budget', () => {
+    const { blocks } = composePlan({
+      dailyMinutes: 60, dueCardCount: 20, daysSinceLastActive: 0, quietMode: false, level: 'A1',
+    });
+    const talk = blocks.find((b) => b.type === 'talk');
+    expect(talk!.minutes).toBeLessThanOrEqual(10);
+    expect(blocks.reduce((s, b) => s + b.minutes, 0)).toBe(60);
+  });
+
+  it('leaves talk uncapped from A2 up', () => {
+    const { blocks } = composePlan({
+      dailyMinutes: 60, dueCardCount: 20, daysSinceLastActive: 0, quietMode: false, level: 'A2',
+    });
+    const talk = blocks.find((b) => b.type === 'talk');
+    expect(talk!.minutes).toBeGreaterThan(10);
+  });
 });
 
 describe('blockCompletion', () => {

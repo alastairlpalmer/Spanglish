@@ -4,8 +4,9 @@
 
 import {
   BUCKET_DEFS,
-  CORE_BUCKETS,
   EXTRA_BUCKETS,
+  RECOMMENDED_PATH,
+  nextRecommendedBucket,
   type BucketProgress,
   type BucketSlug,
 } from '@seiscientas/shared';
@@ -42,6 +43,7 @@ export function BucketBoard({
 }): JSX.Element {
   const { profile, update } = useProfile();
   const activated = new Set(profile.extra_buckets ?? []);
+  const nextUp = nextRecommendedBucket(stats.perBucket);
 
   async function toggleExtra(slug: BucketSlug): Promise<void> {
     const next = activated.has(slug)
@@ -74,10 +76,21 @@ export function BucketBoard({
         {activeBuckets.map((slug) => {
           const b = BUCKET_DEFS[slug];
           const p = stats.perBucket.get(slug);
+          const isNext = slug === nextUp;
           return (
             <button key={slug} className="bucket-row" onClick={() => onOpenBucket(slug)}>
               <div className="row-top">
-                <span className="name">{b.label}</span>
+                <span className="name">
+                  {b.label}
+                  {isNext && (
+                    <span
+                      className="mono"
+                      style={{ color: 'var(--ochre)', fontSize: 10, marginLeft: 6 }}
+                    >
+                      » start here
+                    </span>
+                  )}
+                </span>
                 <span className="counts">
                   {p?.mastered ?? 0}
                   {(p?.inProgress ?? 0) > 0 ? ` +${p!.inProgress}` : ''} / {b.target}
@@ -123,7 +136,8 @@ export function BucketBoard({
 }
 
 export function activeBucketList(extraBuckets: string[] | null, perBucket: Map<string | null, BucketProgress>): BucketSlug[] {
-  const active: BucketSlug[] = [...CORE_BUCKETS];
+  // Core buckets render in recommended-path order — the board IS the path.
+  const active: BucketSlug[] = [...RECOMMENDED_PATH];
   for (const slug of EXTRA_BUCKETS) {
     // Activated extras show; so does any extra that already has cards
     // (covers deactivation after generation and old-profile nulls).

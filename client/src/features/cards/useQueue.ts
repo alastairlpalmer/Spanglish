@@ -8,12 +8,15 @@ const DAILY_QUEUE_CAP = 60;
 
 export interface QueueState {
   queue: Card[];
+  /** Full backlog size, not just the capped window — the honest number. */
+  totalDue: number;
   loading: boolean;
   refresh: () => Promise<void>;
 }
 
 export function useQueue(userId: string): QueueState {
   const [queue, setQueue] = useState<Card[]>([]);
+  const [totalDue, setTotalDue] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -24,6 +27,7 @@ export function useQueue(userId: string): QueueState {
       .and((c) => c.user_id === userId && c.deleted_at === null)
       .sortBy('due');
     setQueue(due.slice(0, DAILY_QUEUE_CAP));
+    setTotalDue(due.length);
     setLoading(false);
   }, [userId]);
 
@@ -31,5 +35,5 @@ export function useQueue(userId: string): QueueState {
     void refresh();
   }, [refresh]);
 
-  return { queue, loading, refresh };
+  return { queue, totalDue, loading, refresh };
 }

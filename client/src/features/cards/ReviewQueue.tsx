@@ -17,11 +17,15 @@ const prefersReducedMotion = (): boolean =>
 export function ReviewQueue({
   userId,
   queue,
+  totalDue,
   refresh,
   onExhausted,
 }: {
   userId: string;
   queue: Card[];
+  /** Full backlog behind the capped window; shown as "N of M due" when it
+   *  exceeds the window so the count visibly shrinks with every grade. */
+  totalDue?: number;
   refresh: () => Promise<void>;
   /** Called when the queue empties (label decides what "done" leads to). */
   onExhausted: () => void;
@@ -33,6 +37,8 @@ export function ReviewQueue({
   const reducedMotion = useRef(prefersReducedMotion());
 
   const current = queue[0] ?? null;
+  const backlog = Math.max(totalDue ?? queue.length, queue.length);
+  const dueLabel = backlog > queue.length ? `${queue.length} of ${backlog} due` : `${queue.length} due`;
 
   useEffect(() => {
     if (!pulse) return;
@@ -63,7 +69,7 @@ export function ReviewQueue({
         <div className="panel" style={{ textAlign: 'center' }}>
           <p className="mono">{gradedInSet} reviewed</p>
           <p className="muted" style={{ fontSize: 14 }}>
-            {queue.length} still due
+            {backlog} still due
           </p>
         </div>
         <button className="btn primary block" onClick={() => setSetBreak(false)}>
@@ -75,7 +81,7 @@ export function ReviewQueue({
 
   return (
     <div className={pulse ? 'pulse' : ''}>
-      <p className="queue-count mono">{queue.length} due</p>
+      <p className="queue-count mono">{dueLabel}</p>
       <div className="card-stage">
         {current.direction === 'production' ? (
           <ProductionCard

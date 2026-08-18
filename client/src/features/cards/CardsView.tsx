@@ -19,7 +19,7 @@ type Mode = { kind: 'board' } | { kind: 'review' } | { kind: 'bucket'; slug: Buc
 
 export function CardsView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
-  const { queue, loading, refresh } = useQueue(userId);
+  const { queue, totalDue, loading, refresh } = useQueue(userId);
   const activeForStats = useMemo(
     () => activeBucketList(profile.extra_buckets, new Map()),
     [profile.extra_buckets],
@@ -81,6 +81,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         <ReviewQueue
           userId={userId}
           queue={queue}
+          totalDue={totalDue}
           refresh={afterChange}
           onExhausted={() => setMode({ kind: 'board' })}
         />
@@ -94,7 +95,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         userId={userId}
         slug={mode.slug}
         online={online}
-        dueCount={queue.length}
+        dueCount={totalDue}
         onBack={() => setMode({ kind: 'board' })}
         onChanged={afterChange}
       />
@@ -105,7 +106,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     <div className="stack">
       <BucketBoard
         stats={stats}
-        dueCount={queue.length}
+        dueCount={totalDue}
         activeBuckets={activeBuckets}
         onReview={() => setMode({ kind: 'review' })}
         onOpenBucket={(slug) => setMode({ kind: 'bucket', slug })}

@@ -11,6 +11,7 @@ import { diaryEntries, saveDiaryEntry, recordReviewErrors } from '../../db/repo'
 import { apiPost, friendlyApiError } from '../../lib/api';
 import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
+import { useOnline } from '../../shell/TabShell';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { addWordPair } from '../cards/createCards';
@@ -25,6 +26,7 @@ interface CheckState {
 
 export function DiarySection({ userId }: { userId: string }): JSX.Element {
   const { profile } = useProfile();
+  const online = useOnline();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [draft, setDraft] = useState('');
   const [check, setCheck] = useState<CheckState | null>(null);
@@ -40,6 +42,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
   // The last cómo-se-dice answer — a word the learner personally needed,
   // offered to the deck. Highest-value vocabulary in the app.
   const [lastSay, setLastSay] = useState<{ es: string; en: string; added: boolean } | null>(null);
+  const [addingSay, setAddingSay] = useState(false);
 
   function append(text: string): void {
     setDraft((d) => {
@@ -172,7 +175,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
               onChange={(e) => setEnglish(e.target.value)}
               placeholder="Type it in English"
               maxLength={200}
-              disabled={saying || !navigator.onLine}
+              disabled={saying || !online}
             />
             <button className="btn" type="submit" disabled={saying || !english.trim()}>
               {saying ? '…' : 'Say it'}
@@ -194,14 +197,18 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
               ) : (
                 <button
                   className="btn quiet"
-                  onClick={() =>
+                  disabled={addingSay}
+                  onClick={() => {
+                    setAddingSay(true);
                     void addWordPair({
                       userId,
                       es: lastSay.es,
                       en: lastSay.en,
                       note: 'From your diary — a word you needed',
-                    }).then(() => setLastSay({ ...lastSay, added: true }))
-                  }
+                    })
+                      .then(() => setLastSay((s) => (s ? { ...s, added: true } : s)))
+                      .finally(() => setAddingSay(false));
+                  }}
                 >
                   add to deck
                 </button>

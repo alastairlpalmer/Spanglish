@@ -58,7 +58,7 @@
 
 .segment-row button {
   flex: 1;
-  min-height: 36px;
+  min-height: var(--touch);
   border: 1px solid var(--line);
   border-radius: var(--radius-chip);
   font-family: var(--font-mono);

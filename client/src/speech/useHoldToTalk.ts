@@ -39,7 +39,10 @@ export function useHoldToTalk(locale: string, onFinal: (text: string) => void): 
         setState('idle');
         onFinal(text.trim());
       } else {
-        setState('failed');
+        // Empty transcript is transient (quiet room, short first attempt) —
+        // stay usable. 'failed' is reserved for the permanent paths: no
+        // recognition support or start() throwing.
+        setState('idle');
       }
     },
     [onFinal],

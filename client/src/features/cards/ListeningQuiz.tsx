@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { speak, stopSpeaking } from '../../speech/synthesis';
 import { localeForDialect } from '../../speech/recognition';
+import { useProfile } from '../../shell/ProfileContext';
 
 export interface QuizWord {
   es: string;
@@ -29,41 +30,42 @@ interface Round {
 }
 
 function buildRounds(words: QuizWord[]): Round[] {
+  // Distractors drawn from UNIQUE meanings: two bucket words sharing an
+  // English gloss must never yield two identical answer buttons.
+  const meanings = [...new Set(words.map((w) => w.en))];
   return shuffle(words)
     .slice(0, ROUNDS)
     .map((word) => {
-      const distractors = shuffle(words.filter((w) => w.en !== word.en))
-        .slice(0, OPTIONS - 1)
-        .map((w) => w.en);
+      const distractors = shuffle(meanings.filter((m) => m !== word.en)).slice(0, OPTIONS - 1);
       return { word, options: shuffle([word.en, ...distractors]) };
     });
 }
 
 export function ListeningQuiz({
   words,
-  dialect,
   onClose,
 }: {
   words: QuizWord[];
-  dialect: string;
   onClose: () => void;
 }): JSX.Element {
+  const { profile } = useProfile();
   // State initializer, not useMemo: the parent rebuilds `words` every render,
   // and reshuffling mid-quiz would swap the answer under the learner.
   const [rounds] = useState(() => buildRounds(words));
   const [index, setIndex] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [score, setScore] = useState(0);
-  const locale = localeForDialect(dialect);
+  const locale = localeForDialect(profile.dialect);
+  // Respect a mid-quiz flip to quiet mode: stop talking, show the word
+  // instead (the quiz degrades to reading, which still works).
+  const quiet = profile.quiet_mode;
 
   const round = rounds[index] ?? null;
 
-  // Speak each new word as it arrives; the quiz opened from a tap, so the
-  // synthesis gate is already unlocked.
   useEffect(() => {
-    if (round) speak(round.word.es, locale);
+    if (round && !quiet) speak(round.word.es, locale);
     return stopSpeaking;
-  }, [round, locale]);
+  }, [round, locale, quiet]);
 
   if (!round) {
     return (
@@ -90,9 +92,15 @@ export function ListeningQuiz({
       <p className="queue-count mono">
         {index + 1} / {rounds.length}
       </p>
-      <button className="btn block" onClick={() => speak(round.word.es, locale)}>
-        {picked === null ? '🔊 hear it again' : `🔊 ${round.word.es}`}
-      </button>
+      {quiet ? (
+        <p lang="es" style={{ textAlign: 'center', fontSize: 20, color: 'var(--ochre)' }}>
+          {round.word.es}
+        </p>
+      ) : (
+        <button className="btn block" onClick={() => speak(round.word.es, locale)}>
+          {picked === null ? '🔊 hear it again' : `🔊 ${round.word.es}`}
+        </button>
+      )}
       <div className="stack" style={{ gap: 8 }}>
         {round.options.map((opt) => {
           const isRight = opt === round.word.en;

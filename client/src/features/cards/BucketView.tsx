@@ -2,7 +2,7 @@
 // queue is clear, a listening quiz, and the word list (hardest first) —
 // each word opening a detail sheet with test-me-now.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BUCKET_DEFS,
   MAX_STEP,
@@ -16,7 +16,7 @@ import { db } from '../../db/dexie';
 import { friendlyApiError } from '../../lib/api';
 import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
-import { synthesisAvailable } from '../../speech/synthesis';
+import { synthesisAvailable, unlockSynthesis } from '../../speech/synthesis';
 import { generateCards } from './generate';
 import { ListeningQuiz, type QuizWord } from './ListeningQuiz';
 import { ReviewQueue } from './ReviewQueue';
@@ -53,6 +53,13 @@ export function BucketView({
   const [quiz, setQuiz] = useState(false);
   const [sheet, setSheet] = useState<string | null>(null); // word key
   const [test, setTest] = useState<Card[] | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  // The sheet renders below a possibly-long word list; without this, tapping
+  // a word near the top produces no visible change on a phone screen.
+  useEffect(() => {
+    if (sheet !== null) sheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [sheet]);
 
   const def = BUCKET_DEFS[slug];
 
@@ -100,7 +107,14 @@ export function BucketView({
       <div className="stack">
         <div className="row" style={{ minHeight: 0 }}>
           <span className="eyebrow">get ahead — {def.label.toLowerCase()}</span>
-          <button className="btn quiet" onClick={() => setAhead(null)}>
+          <button
+            className="btn quiet"
+            onClick={() => {
+              setAhead(null);
+              void refresh();
+              void onChanged();
+            }}
+          >
             back
           </button>
         </div>
@@ -110,7 +124,10 @@ export function BucketView({
           <ReviewQueue
             userId={userId}
             queue={ahead}
-            refresh={loadAhead}
+            // Snapshot + drop the head: re-querying the 7-day horizon would
+            // re-admit just-graded cards (steps 1-3 land inside 7 days) and
+            // loop them to step 4 with zero real spacing.
+            refresh={async () => setAhead((q) => (q && q.length > 0 ? q.slice(1) : q))}
             onExhausted={() => {
               setAhead(null);
               void refresh();
@@ -141,7 +158,7 @@ export function BucketView({
             back
           </button>
         </div>
-        <ListeningQuiz words={quizWords} dialect={profile.dialect} onClose={() => setQuiz(false)} />
+        <ListeningQuiz words={quizWords} onClose={() => setQuiz(false)} />
       </div>
     );
   }
@@ -231,7 +248,15 @@ export function BucketView({
       {genError && <p className="error-line">{genError}</p>}
 
       {quizReady && (
-        <button className="btn block" onClick={() => setQuiz(true)}>
+        <button
+          className="btn block"
+          onClick={() => {
+            // This tap is the user gesture that unlocks iOS speech synthesis;
+            // the quiz's autoplay effect runs outside any gesture.
+            unlockSynthesis();
+            setQuiz(true);
+          }}
+        >
           🔊 Quiz by ear
         </button>
       )}
@@ -251,7 +276,7 @@ export function BucketView({
               key={w.word}
               onClick={() => setSheet(sheet === wordKey(w.word) ? null : wordKey(w.word))}
               style={{
-                minHeight: 30,
+                minHeight: 44,
                 padding: '2px 0',
                 background: 'none',
                 border: 'none',
@@ -272,7 +297,7 @@ export function BucketView({
       )}
 
       {sheet !== null && sheetCards.length > 0 && (
-        <div className="panel stack" style={{ gap: 8 }}>
+        <div className="panel stack" style={{ gap: 8 }} ref={sheetRef}>
           <div className="row" style={{ minHeight: 0, padding: 0 }}>
             <span lang="es" style={{ fontSize: 18, color: 'var(--ochre)' }}>
               {sheetRec?.word ?? sheetProd?.word}

@@ -15,6 +15,7 @@ function MissingWords({
   userId: string;
 }): JSX.Element | null {
   const [added, setAdded] = useState<Set<number>>(new Set());
+  const [pending, setPending] = useState<Set<number>>(new Set());
   if (words.length === 0) return null;
   return (
     <div className="panel stack" style={{ gap: 8 }}>
@@ -34,14 +35,16 @@ function MissingWords({
           ) : (
             <button
               className="btn quiet"
-              onClick={() =>
+              disabled={pending.has(i)}
+              onClick={() => {
+                setPending((s) => new Set(s).add(i));
                 void addWordPair({
                   userId,
                   es: w.es,
                   en: w.en,
                   note: 'You needed this word in a conversation and did not have it.',
-                }).then(() => setAdded((s) => new Set(s).add(i)))
-              }
+                }).then(() => setAdded((s) => new Set(s).add(i)));
+              }}
             >
               add to deck
             </button>
@@ -112,6 +115,9 @@ export function ReviewStack({
       </div>
       <button className="btn primary block" onClick={() => setIndex(index + 1)}>
         Next
+      </button>
+      <button className="btn quiet" onClick={() => setIndex(total)}>
+        skip to summary
       </button>
     </div>
   );

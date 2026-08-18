@@ -7,7 +7,7 @@ import { TalkView } from '../features/talk/TalkView';
 import { ReadTab } from '../features/read/ReadTab';
 import { LogView } from '../features/log/LogView';
 
-function useOnline(): boolean {
+export function useOnline(): boolean {
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
     const up = (): void => setOnline(true);

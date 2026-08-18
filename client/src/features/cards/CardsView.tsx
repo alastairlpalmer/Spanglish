@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { BucketSlug } from '@seiscientas/shared';
 import { useQueue } from './useQueue';
-import { useBucketStats } from './useBucketStats';
+import { overallMastery, useBucketStats } from './useBucketStats';
 import { BucketBoard, activeBucketList } from './BucketBoard';
 import { BucketView } from './BucketView';
 import { CognateLab } from './CognateLab';
@@ -24,16 +24,18 @@ type Section = 'vocab' | 'latinos' | 'frases';
 
 export function CardsView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
-  const { queue, totalDue, totalDueRecognition, loading, refresh } = useQueue(userId);
-  const activeForStats = useMemo(
-    () => activeBucketList(profile.extra_buckets, new Map()),
-    [profile.extra_buckets],
-  );
-  const stats = useBucketStats(userId, activeForStats);
-  // Recompute active list once stats exist so extras with cards always show.
+  const { queue, recognitionQueue, totalDue, totalDueRecognition, loading, refresh } =
+    useQueue(userId);
+  const stats = useBucketStats(userId);
+  // Extras show when activated OR when they already hold cards; the overall
+  // bar is summed over this same final list so header and rows always agree.
   const activeBuckets = useMemo(
     () => activeBucketList(profile.extra_buckets, stats.perBucket),
     [profile.extra_buckets, stats.perBucket],
+  );
+  const overall = useMemo(
+    () => overallMastery(stats.perBucket, activeBuckets),
+    [stats.perBucket, activeBuckets],
   );
 
   // The board is home; the daily review is one tap ("Review N due").
@@ -110,6 +112,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
       <div className="stack">
         <BucketBoard
           stats={stats}
+          overall={overall}
           dueCount={totalDue}
           activeBuckets={activeBuckets}
           onReview={() => setMode({ kind: 'review' })}
@@ -137,7 +140,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
 
   // Phrase review: the same due cards, recognition side only, always led by
   // the full sentence. Grading writes to the same scheduler.
-  const phraseQueue = queue.filter((c) => c.direction === 'recognition');
+  const phraseQueue = recognitionQueue;
 
   return (
     <div className="stack">

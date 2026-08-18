@@ -27,10 +27,16 @@ interface Message {
   content: string;
 }
 
+// Conversation state lives only in this component, and the shell unmounts it
+// on every tab switch — an accidental tap on the bottom bar must not destroy
+// ten minutes of talking. Saved here on unmount, restored on mount, cleared
+// when a conversation properly ends.
+let savedTalk: { scenario: string; messages: Message[] } | null = null;
+
 export function TalkView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
-  const [scenario, setScenario] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [scenario, setScenario] = useState<string | null>(() => savedTalk?.scenario ?? null);
+  const [messages, setMessages] = useState<Message[]>(() => savedTalk?.messages ?? []);
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
   const [review, setReview] = useState<ReviewResponse | null>(null);
@@ -54,6 +60,25 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   }, [messages, streamingText]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Preserve an in-progress conversation across tab switches; a finished or
+  // reviewed one stays cleared.
+  const liveRef = useRef<{ scenario: string | null; messages: Message[]; inReview: boolean }>({
+    scenario: null,
+    messages: [],
+    inReview: false,
+  });
+  liveRef.current = { scenario, messages, inReview: review !== null };
+  useEffect(
+    () => () => {
+      const live = liveRef.current;
+      savedTalk =
+        live.scenario && live.messages.length > 0 && !live.inReview
+          ? { scenario: live.scenario, messages: live.messages }
+          : null;
+    },
+    [],
+  );
 
   async function send(text: string): Promise<void> {
     if (!scenario || streamingText !== null) return;
@@ -132,6 +157,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   }
 
   function reset(): void {
+    savedTalk = null;
     setScenario(null);
     setMessages([]);
     setReview(null);

@@ -10,16 +10,39 @@ import { db } from '../../db/dexie';
 
 export interface BucketStats {
   perBucket: Map<string | null, BucketProgress>;
-  overall: { mastered: number; inProgress: number; targetTotal: number };
   generalCount: number;
   loading: boolean;
   refresh: () => Promise<void>;
 }
 
+export interface OverallMastery {
+  mastered: number;
+  inProgress: number;
+  targetTotal: number;
+}
+
+/** Overall totals over the FINAL rendered bucket list — computed by the
+ *  caller so the header bar always sums exactly the rows shown beneath it. */
+export function overallMastery(
+  perBucket: Map<string | null, BucketProgress>,
+  activeBuckets: BucketSlug[],
+): OverallMastery {
+  const overall: OverallMastery = { mastered: 0, inProgress: 0, targetTotal: 0 };
+  for (const slug of activeBuckets) {
+    overall.targetTotal += BUCKET_DEFS[slug].target;
+    const p = perBucket.get(slug);
+    if (p) {
+      overall.mastered += p.mastered;
+      overall.inProgress += p.inProgress;
+    }
+  }
+  return overall;
+}
+
 /** Board data: one indexed query over bucketed cards + a count for the
  *  general pseudo-bucket. Refreshed explicitly (after grading/generation),
  *  never per render. */
-export function useBucketStats(userId: string, activeBuckets: BucketSlug[]): BucketStats {
+export function useBucketStats(userId: string): BucketStats {
   const [perBucket, setPerBucket] = useState<Map<string | null, BucketProgress>>(new Map());
   const [generalCount, setGeneralCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,15 +65,5 @@ export function useBucketStats(userId: string, activeBuckets: BucketSlug[]): Buc
     void refresh();
   }, [refresh]);
 
-  const overall = { mastered: 0, inProgress: 0, targetTotal: 0 };
-  for (const slug of activeBuckets) {
-    overall.targetTotal += BUCKET_DEFS[slug].target;
-    const p = perBucket.get(slug);
-    if (p) {
-      overall.mastered += p.mastered;
-      overall.inProgress += p.inProgress;
-    }
-  }
-
-  return { perBucket, overall, generalCount, loading, refresh };
+  return { perBucket, generalCount, loading, refresh };
 }

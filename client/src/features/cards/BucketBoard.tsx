@@ -9,7 +9,7 @@ import {
   type BucketProgress,
   type BucketSlug,
 } from '@seiscientas/shared';
-import type { BucketStats } from './useBucketStats';
+import type { BucketStats, OverallMastery } from './useBucketStats';
 import { useProfile } from '../../shell/ProfileContext';
 
 function Bar({ progress, target }: { progress: BucketProgress | undefined; target: number }): JSX.Element {
@@ -25,12 +25,16 @@ function Bar({ progress, target }: { progress: BucketProgress | undefined; targe
 
 export function BucketBoard({
   stats,
+  overall,
   dueCount,
   activeBuckets,
   onReview,
   onOpenBucket,
 }: {
   stats: BucketStats;
+  /** Computed over the same activeBuckets list rendered below, so the header
+   *  bar always agrees with the rows. */
+  overall: OverallMastery;
   dueCount: number;
   activeBuckets: BucketSlug[];
   onReview: () => void;
@@ -45,8 +49,6 @@ export function BucketBoard({
       : [...activated, slug];
     await update({ extra_buckets: next });
   }
-
-  const { overall } = stats;
 
   return (
     <div className="stack">

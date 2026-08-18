@@ -14,6 +14,20 @@ import { PowerVerbs } from './PowerVerbs';
 
 const MIX_SIZE = 20;
 
+// Per-rule practice memory (local only): "got/total" of the last completed
+// single-rule run. Shown on rule rows; weak rules get double weight in the
+// random mix.
+const scoreKey = (slug: string): string => `cognate-score-${slug}`;
+
+function lastScore(slug: string): { got: number; total: number } | null {
+  const raw = localStorage.getItem(scoreKey(slug));
+  if (!raw) return null;
+  const [got, total] = raw.split('/').map(Number);
+  return Number.isFinite(got) && Number.isFinite(total) && total! > 0
+    ? { got: got!, total: total! }
+    : null;
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
   for (let i = out.length - 1; i > 0; i--) {
@@ -55,18 +69,30 @@ function Practice({
   const [got, setGot] = useState(0);
   const [graded, setGraded] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [missed, setMissed] = useState<PracticeItem[]>([]);
+  const [harvested, setHarvested] = useState(false);
 
   const current = items[index] ?? null;
   const canSpeak = !profile.quiet_mode && synthesisAvailable();
+  const finished = current === null;
 
   function grade(hit: boolean): void {
     setGraded((g) => g + 1);
     if (hit) setGot((g) => g + 1);
+    else if (current) setMissed((m) => [...m, current]);
     setRevealed(false);
     setIndex((i) => i + 1);
   }
 
-  if (!current) {
+  // A completed single-rule run is the rule's score memory.
+  useEffect(() => {
+    if (finished && !mixed && graded === items.length && graded > 0) {
+      localStorage.setItem(scoreKey(items[0]!.rule.slug), `${got}/${graded}`);
+    }
+  }, [finished, mixed, graded, got, items]);
+
+  if (finished) {
+    const harvestable = missed.filter((m) => !inDeck.has(m.es.toLowerCase()));
     return (
       <div className="stack">
         <div className="panel" style={{ textAlign: 'center' }}>
@@ -79,6 +105,53 @@ function Practice({
               : `${items[0]!.rule.pattern} — the rule does most of the work. Trust it.`}
           </p>
         </div>
+        {missed.length > 0 && (
+          <div className="panel stack" style={{ gap: 6 }}>
+            <p className="eyebrow">your misses — the words worth keeping</p>
+            {missed.map((m) => (
+              <p key={m.es} style={{ fontSize: 14 }}>
+                <span lang="es" style={{ color: 'var(--ochre)' }}>
+                  {m.es}
+                </span>{' '}
+                <span className="muted">— {m.en}</span>
+              </p>
+            ))}
+            {harvestable.length > 0 && !harvested ? (
+              <button
+                className="btn block"
+                disabled={adding}
+                onClick={() => {
+                  setAdding(true);
+                  void (async () => {
+                    for (const m of harvestable) {
+                      await addWordPair({
+                        userId,
+                        es: m.es,
+                        en: m.en,
+                        note: `Cognate rule ${m.rule.pattern}. You missed this in practice.`,
+                      });
+                    }
+                  })()
+                    .then(() => {
+                      setHarvested(true);
+                      onDeckChange();
+                    })
+                    .finally(() => setAdding(false));
+                }}
+              >
+                {adding ? 'adding' : `Add ${harvestable.length} misses to the deck`}
+              </button>
+            ) : (
+              <p className="mono muted" style={{ fontSize: 11 }}>
+                {missed.length > 0 && harvestable.length === 0 && !harvested
+                  ? 'all already in the deck'
+                  : harvested
+                    ? 'in the deck'
+                    : ''}
+              </p>
+            )}
+          </div>
+        )}
         <button className="btn primary block" onClick={onClose}>
           Done
         </button>
@@ -271,19 +344,29 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
       </div>
       <button
         className="btn primary block"
-        onClick={() =>
-          setSession({
-            title: 'práctica aleatoria',
-            mixed: true,
-            items: shuffle(ALL_ITEMS).slice(0, MIX_SIZE),
-          })
-        }
+        onClick={() => {
+          // Weak rules (last score under 70%) get double weight in the draw.
+          const pool = ALL_ITEMS.flatMap((item) => {
+            const s = lastScore(item.rule.slug);
+            return s && s.got / s.total < 0.7 ? [item, item] : [item];
+          });
+          const drawn: PracticeItem[] = [];
+          const seen = new Set<string>();
+          for (const item of shuffle(pool)) {
+            if (seen.has(item.es)) continue;
+            seen.add(item.es);
+            drawn.push(item);
+            if (drawn.length >= MIX_SIZE) break;
+          }
+          setSession({ title: 'práctica aleatoria', mixed: true, items: drawn });
+        }}
       >
         Práctica aleatoria — {MIX_SIZE} words, every rule
       </button>
       <PowerVerbs />
       {COGNATE_RULES.map((r) => {
         const known = r.words.filter((w) => inDeck.has(w.es.toLowerCase())).length;
+        const score = lastScore(r.slug);
         return (
           <button
             className="row"
@@ -310,6 +393,16 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
               </span>
             </span>
             <span className="mono muted" style={{ fontSize: 11 }}>
+              {score && (
+                <span
+                  style={{
+                    color: score.got / score.total < 0.7 ? 'var(--clay)' : 'var(--sage)',
+                    marginRight: 6,
+                  }}
+                >
+                  {score.got}/{score.total}
+                </span>
+              )}
               {known}/{r.words.length}
             </span>
           </button>

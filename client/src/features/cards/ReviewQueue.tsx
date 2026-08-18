@@ -208,6 +208,7 @@ export function ReviewQueue({
             dialect={profile.dialect}
             wordFirst={sentenceFirst ? false : isBeginner(profile.level)}
             listenFirst={sentenceFirst && !profile.quiet_mode}
+            leech={current.seen >= 6 && current.step <= 1}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />

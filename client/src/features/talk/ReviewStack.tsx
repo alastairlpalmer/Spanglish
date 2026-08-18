@@ -55,13 +55,43 @@ function MissingWords({
   );
 }
 
+function TargetReport({
+  report,
+}: {
+  report: Array<{ word: string; used: boolean }>;
+}): JSX.Element | null {
+  if (report.length === 0) return null;
+  const used = report.filter((r) => r.used);
+  return (
+    <div className="panel stack" style={{ gap: 4 }}>
+      <p className="eyebrow">your study words</p>
+      <p style={{ fontSize: 14 }}>
+        Used {used.length} of {report.length}:{' '}
+        {report.map((r, i) => (
+          <span key={r.word}>
+            <span lang="es" style={{ color: r.used ? 'var(--sage)' : 'var(--muted)' }}>
+              {r.used ? '✓ ' : ''}
+              {r.word}
+            </span>
+            {i < report.length - 1 ? ', ' : ''}
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
+
 export function ReviewStack({
   review,
   userId,
+  targetReport = [],
   onClose,
 }: {
   review: ReviewResponse;
   userId: string;
+  /** In-training words the tutor was steering toward, with whether the
+   *  learner actually produced them. */
+  targetReport?: Array<{ word: string; used: boolean }>;
   onClose: () => void;
 }): JSX.Element {
   const [index, setIndex] = useState(0);
@@ -71,6 +101,7 @@ export function ReviewStack({
     return (
       <div className="stack">
         <p>Nothing to correct from this conversation.</p>
+        <TargetReport report={targetReport} />
         <MissingWords words={review.missingWords} userId={userId} />
         <button className="btn primary block" onClick={onClose}>
           Done
@@ -90,6 +121,7 @@ export function ReviewStack({
             <p>{review.worstHabit}</p>
           </div>
         )}
+        <TargetReport report={targetReport} />
         <MissingWords words={review.missingWords} userId={userId} />
         <button className="btn primary block" onClick={onClose}>
           Done

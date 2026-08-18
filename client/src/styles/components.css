@@ -801,6 +801,12 @@
   animation: fade-up 0.15s ease-out;
 }
 
+/* Words the learner already holds, faintly marked in article text — their
+   vocabulary visibly showing up in the wild. */
+.reading-body .known-word {
+  border-bottom: 1px dotted rgba(95, 191, 151, 0.55);
+}
+
 /* --- tab badge (cards due) --- */
 .tab-bar button {
   position: relative;

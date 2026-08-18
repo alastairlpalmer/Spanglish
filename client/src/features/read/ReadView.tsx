@@ -151,11 +151,15 @@ function gradeDictation(target: string, typed: string): DictationResult {
 function GlossedBody({
   body,
   gloss,
+  knownWords,
   onTap,
   onTapAny,
 }: {
   body: string;
   gloss: GlossEntry[];
+  /** Deck words the learner has held for a spaced interval — faintly marked
+   *  so their vocabulary visibly shows up in real text. */
+  knownWords: Set<string>;
   onTap: (entry: GlossEntry) => void;
   onTapAny: (word: string) => void;
 }): JSX.Element {
@@ -184,7 +188,11 @@ function GlossedBody({
       }
       return part.split(new RegExp(`([${LETTER}]+)`)).map((tok) =>
         WORD_RE.test(tok) ? (
-          <span key={key++} onClick={() => handlers.current.onTapAny(tok)}>
+          <span
+            key={key++}
+            className={knownWords.has(tok.toLowerCase()) ? 'known-word' : undefined}
+            onClick={() => handlers.current.onTapAny(tok)}
+          >
             {tok}
           </span>
         ) : (
@@ -192,7 +200,7 @@ function GlossedBody({
         ),
       );
     });
-  }, [body, gloss]);
+  }, [body, gloss, knownWords]);
 
   return <p className="reading-body">{nodes}</p>;
 }
@@ -223,6 +231,24 @@ export function ReadView({ userId, mode }: { userId: string; mode: 'news' | 'sto
   } | null>(null);
 
   useSessionTimer(userId, 'read', profile.daily_minutes);
+
+  // Words the learner has held through at least one spaced interval (step 2+
+  // on the recognition side). Faintly marked in article text — the single
+  // most motivating feedback a reader gets is their own vocabulary showing up.
+  const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void db.cards
+      .filter(
+        (c) =>
+          c.user_id === userId &&
+          c.deleted_at === null &&
+          c.direction === 'recognition' &&
+          c.step >= 2 &&
+          !!c.word,
+      )
+      .toArray()
+      .then((rows) => setKnownWords(new Set(rows.map((c) => c.word!.trim().toLowerCase()))));
+  }, [userId]);
 
   const piece: Piece | null =
     mode === 'news' ? (article ? articlePiece(article) : null) : episode ? episodePiece(episode) : null;
@@ -509,6 +535,7 @@ export function ReadView({ userId, mode }: { userId: string; mode: 'news' | 'sto
             <GlossedBody
               body={piece.body}
               gloss={piece.gloss}
+              knownWords={knownWords}
               onTap={setGlossOpen}
               onTapAny={(w) => void lookupWord(w)}
             />

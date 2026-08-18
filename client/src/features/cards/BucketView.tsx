@@ -303,6 +303,31 @@ export function BucketView({
         </button>
       )}
 
+      {(() => {
+        // Leeches: seen many times, still stuck at the bottom. Surfaced so the
+        // learner knows which words are eating their review time.
+        const leeches = [
+          ...new Set(
+            rows
+              .filter((c) => c.seen >= 6 && c.step <= 1 && c.word)
+              .map((c) => c.word!.trim()),
+          ),
+        ];
+        return leeches.length > 0 ? (
+          <div className="panel stack" style={{ gap: 2 }}>
+            <p className="eyebrow" style={{ color: 'var(--clay)' }}>
+              palabras duras — not sticking yet
+            </p>
+            <p lang="es" style={{ fontSize: 14 }}>
+              {leeches.join(' · ')}
+            </p>
+            <p className="muted" style={{ fontSize: 12 }}>
+              These now always show with their sentence. Tap one below and test it now.
+            </p>
+          </div>
+        ) : null;
+      })()}
+
       {words.length > 0 && (
         <div className="panel stack" style={{ gap: 2 }}>
           <p className="eyebrow">words — tap one to inspect it</p>

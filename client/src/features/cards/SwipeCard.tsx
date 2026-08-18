@@ -15,8 +15,9 @@ export function SwipeCard({
   card,
   quietMode,
   dialect,
-  wordFirst,
+  wordFirst: wordFirstProp,
   listenFirst,
+  leech,
   reducedMotion,
   onGrade,
 }: {
@@ -29,9 +30,14 @@ export function SwipeCard({
   /** Ear training (frases): the sentence is SPOKEN, not shown — no text
    *  until reveal. Wins over wordFirst. */
   listenFirst?: boolean;
+  /** Repeatedly-missed card: always show full sentence context (the bare
+   *  word clearly is not sticking on its own). */
+  leech?: boolean;
   reducedMotion: boolean;
   onGrade: (grade: 'got' | 'miss') => void;
 }): JSX.Element {
+  // Leeches lose word-first: the bare word is not sticking, give it context.
+  const wordFirst = wordFirstProp && !leech;
   const [revealed, setRevealed] = useState(false);
   const [dx, setDx] = useState(0);
   const dragging = useRef(false);
@@ -100,6 +106,11 @@ export function SwipeCard({
         className="card-wash"
         style={{ background: washColor, opacity: dragging.current ? washOpacity : 0 }}
       />
+      {leech && (
+        <p className="mono" style={{ fontSize: 10, color: 'var(--clay)' }}>
+          palabra dura — shown with context
+        </p>
+      )}
       {listenFirst && !revealed ? (
         <p className="es" style={{ fontSize: 40, textAlign: 'center' }}>
           🔊

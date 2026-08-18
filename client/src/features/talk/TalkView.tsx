@@ -9,6 +9,7 @@ import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { speak, stopSpeaking, synthesisAvailable } from '../../speech/synthesis';
 import { recordReviewErrors } from '../../db/repo';
+import { db } from '../../db/dexie';
 import { weakConcepts } from '../drill/weak';
 import { ReviewStack } from './ReviewStack';
 
@@ -67,6 +68,9 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   const [typed, setTyped] = useState('');
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  // Five in-training bucket words the tutor is asked to weave in — the
+  // bridge from the card deck to real use. Fixed for the conversation.
+  const [targetWords, setTargetWords] = useState<string[]>([]);
   // Errors carry their source so retry does the right thing: re-sending the
   // last message is only correct for a failed send, not a failed review.
   const [error, setError] = useState<{ source: 'send' | 'review'; message: string } | null>(null);
@@ -84,6 +88,37 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [messages, streamingText]);
+
+  useEffect(() => {
+    if (!scenario) {
+      setTargetWords([]);
+      return;
+    }
+    void db.cards
+      .filter(
+        (c) =>
+          c.user_id === userId &&
+          c.deleted_at === null &&
+          c.bucket != null &&
+          c.direction === 'recognition' &&
+          !!c.word &&
+          c.step >= 1 &&
+          c.step <= 3,
+      )
+      .toArray()
+      .then((rows) => {
+        const seen = new Set<string>();
+        const words: string[] = [];
+        for (const c of rows) {
+          const w = c.word!.trim();
+          if (seen.has(w.toLowerCase())) continue;
+          seen.add(w.toLowerCase());
+          words.push(w);
+          if (words.length >= 5) break;
+        }
+        setTargetWords(words);
+      });
+  }, [scenario, userId]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -129,6 +164,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
       dialect: profile.dialect,
       level: profile.level,
       weakConcepts: weak,
+      targetWords,
     };
 
     let acc = '';
@@ -204,7 +240,19 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
     );
   }
 
-  if (review) return <ReviewStack review={review} userId={userId} onClose={reset} />;
+  if (review) {
+    const saidLower = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content.toLowerCase())
+      .join(' ');
+    const targetReport = targetWords.map((w) => ({
+      word: w,
+      used: saidLower.includes(w.toLowerCase()),
+    }));
+    return (
+      <ReviewStack review={review} userId={userId} targetReport={targetReport} onClose={reset} />
+    );
+  }
 
   if (!scenario) {
     return (

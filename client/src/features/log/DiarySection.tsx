@@ -24,6 +24,32 @@ interface CheckState {
   message: string | null;
 }
 
+// One rotating question a day: the blank page needs a reason to write TODAY,
+// not just the means. Rotation is by day-of-year, no state.
+const DAILY_QUESTIONS: Array<{ es: string; en: string }> = [
+  { es: '¿Qué comiste hoy?', en: 'What did you eat today?' },
+  { es: '¿Cómo estás hoy y por qué?', en: 'How are you today, and why?' },
+  { es: '¿Qué hiciste esta mañana?', en: 'What did you do this morning?' },
+  { es: '¿Con quién hablaste hoy?', en: 'Who did you talk to today?' },
+  { es: '¿Qué vas a hacer mañana?', en: 'What are you going to do tomorrow?' },
+  { es: '¿Qué tiempo hace hoy?', en: 'What is the weather like today?' },
+  { es: '¿Qué compraste esta semana?', en: 'What did you buy this week?' },
+  { es: '¿Qué quieres aprender esta semana?', en: 'What do you want to learn this week?' },
+  { es: '¿Qué viste en la televisión o en el móvil?', en: 'What did you watch on TV or your phone?' },
+  { es: '¿Cuál fue lo mejor de tu día?', en: 'What was the best part of your day?' },
+  { es: '¿Qué música escuchaste hoy?', en: 'What music did you listen to today?' },
+  { es: '¿Dónde te gustaría viajar?', en: 'Where would you like to travel?' },
+  { es: '¿Qué desayunaste?', en: 'What did you have for breakfast?' },
+  { es: '¿Qué te molestó hoy?', en: 'What annoyed you today?' },
+];
+
+function dailyQuestion(): { es: string; en: string } {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const day = Math.floor((now.getTime() - start.getTime()) / 86_400_000);
+  return DAILY_QUESTIONS[day % DAILY_QUESTIONS.length]!;
+}
+
 export function DiarySection({ userId }: { userId: string }): JSX.Element {
   const { profile } = useProfile();
   const online = useOnline();
@@ -122,6 +148,16 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
   return (
     <div className="panel stack">
       <p className="eyebrow">diario</p>
+
+      <p style={{ fontSize: 14 }}>
+        <span className="eyebrow" style={{ marginRight: 8 }}>
+          hoy
+        </span>
+        <span lang="es">{dailyQuestion().es}</span>{' '}
+        <span className="muted" style={{ fontSize: 12 }}>
+          — {dailyQuestion().en}
+        </span>
+      </p>
 
       <textarea
         value={draft}

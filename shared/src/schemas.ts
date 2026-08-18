@@ -47,6 +47,10 @@ export const talkRequestSchema = z.object({
   dialect: z.string(),
   level: z.string(),
   weakConcepts: z.array(z.string()).max(25).default([]),
+  // In-training vocabulary the tutor should weave into the conversation —
+  // the transfer bridge from the card deck to real use. Constant for the
+  // whole conversation (part of the cached system block).
+  targetWords: z.array(z.string()).max(8).default([]),
 });
 // Streamed as SSE events: {type:'delta',text} | {type:'done'} | {type:'error',message}
 export const talkStreamEventSchema = z.discriminatedUnion('type', [

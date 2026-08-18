@@ -207,6 +207,7 @@ export function ReviewQueue({
             quietMode={profile.quiet_mode}
             dialect={profile.dialect}
             wordFirst={sentenceFirst ? false : isBeginner(profile.level)}
+            listenFirst={sentenceFirst && !profile.quiet_mode}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />

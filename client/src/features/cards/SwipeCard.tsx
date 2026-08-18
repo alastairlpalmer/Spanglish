@@ -3,7 +3,7 @@
 // equal-weight alternative. Gestures starting near the left screen edge are
 // ignored (iOS back-swipe).
 
-import { useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import type { Card } from '@seiscientas/shared';
 import { speak } from '../../speech/synthesis';
 import { localeForDialect } from '../../speech/recognition';
@@ -16,6 +16,7 @@ export function SwipeCard({
   quietMode,
   dialect,
   wordFirst,
+  listenFirst,
   reducedMotion,
   onGrade,
 }: {
@@ -25,6 +26,9 @@ export function SwipeCard({
   /** Beginner presentation: the word alone on the front, the sentence as
    *  reinforcement on reveal. Raw vocab drilling without bare word pairs. */
   wordFirst: boolean;
+  /** Ear training (frases): the sentence is SPOKEN, not shown — no text
+   *  until reveal. Wins over wordFirst. */
+  listenFirst?: boolean;
   reducedMotion: boolean;
   onGrade: (grade: 'got' | 'miss') => void;
 }): JSX.Element {
@@ -33,6 +37,13 @@ export function SwipeCard({
   const dragging = useRef(false);
   const startX = useRef(0);
   const pointerId = useRef<number | null>(null);
+
+  // Listening card speaks itself as it arrives (the section chip tap
+  // unlocked synthesis; each card is a fresh mount via its key).
+  useEffect(() => {
+    if (listenFirst && !quietMode) speak(card.es ?? '', localeForDialect(dialect));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>): void {
     if (e.clientX < EDGE_GUARD_PX) return; // leave the iOS back-swipe alone
@@ -89,7 +100,11 @@ export function SwipeCard({
         className="card-wash"
         style={{ background: washColor, opacity: dragging.current ? washOpacity : 0 }}
       />
-      {wordFirst ? (
+      {listenFirst && !revealed ? (
+        <p className="es" style={{ fontSize: 40, textAlign: 'center' }}>
+          🔊
+        </p>
+      ) : wordFirst && !listenFirst ? (
         <p className="es" lang="es" style={{ fontSize: 32 }}>
           <span className="target">{word || es}</span>
         </p>
@@ -115,7 +130,7 @@ export function SwipeCard({
           onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            speak(wordFirst ? word || es : es, localeForDialect(dialect));
+            speak(wordFirst && !listenFirst ? word || es : es, localeForDialect(dialect));
           }}
         >
           listen
@@ -143,7 +158,7 @@ export function SwipeCard({
         </div>
       ) : (
         <p className="muted" style={{ fontSize: 13 }}>
-          tap to reveal
+          {listenFirst ? 'listen, then tap to reveal' : 'tap to reveal'}
         </p>
       )}
     </div>

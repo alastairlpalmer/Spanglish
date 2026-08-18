@@ -23,6 +23,9 @@ import { ReviewQueue } from './ReviewQueue';
 
 const AHEAD_DAYS = 7;
 const QUIZ_MIN_WORDS = 4;
+// Above this many due cards, adding 20 more words needs a second look —
+// unchecked intake is how SRS backlogs (and quitters) are made.
+export const INTAKE_WARN_DUE = 30;
 
 const wordKey = (w: string): string => w.trim().toLowerCase();
 
@@ -49,6 +52,7 @@ export function BucketView({
   const [mastered, setMastered] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [intakeWarn, setIntakeWarn] = useState(false);
   const [ahead, setAhead] = useState<Card[] | null>(null);
   const [quiz, setQuiz] = useState(false);
   const [sheet, setSheet] = useState<string | null>(null); // word key
@@ -239,13 +243,43 @@ export function BucketView({
       </div>
 
       {online ? (
-        <button className="btn primary block" disabled={generating} onClick={() => void learn()}>
+        <button
+          className="btn primary block"
+          disabled={generating}
+          onClick={() => {
+            if (dueCount > INTAKE_WARN_DUE) setIntakeWarn(true);
+            else void learn();
+          }}
+        >
           {generating ? 'finding words' : 'Learn 20 new words'}
         </button>
       ) : (
         <p className="muted" style={{ fontSize: 13 }}>
           New words need a connection.
         </p>
+      )}
+      {intakeWarn && (
+        <div className="panel stack" style={{ gap: 8 }}>
+          <p style={{ fontSize: 14 }}>
+            {dueCount} cards are already waiting. Adding 20 words now roughly doubles tomorrow's
+            queue — clearing the backlog first beats stacking it.
+          </p>
+          <div className="grade-row">
+            <button className="btn" onClick={() => setIntakeWarn(false)}>
+              Clear queue first
+            </button>
+            <button
+              className="btn"
+              style={{ borderColor: 'var(--ochre)' }}
+              onClick={() => {
+                setIntakeWarn(false);
+                void learn();
+              }}
+            >
+              Add anyway
+            </button>
+          </div>
+        </div>
       )}
       {genError && <p className="error-line">{genError}</p>}
 

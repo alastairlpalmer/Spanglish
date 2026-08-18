@@ -72,12 +72,14 @@ export const mockSerial = {
   ],
 };
 
+// Beginner conversations carry tappable reply suggestions after the @@@
+// marker (stripped client-side, never spoken or stored in history).
 export const mockTalkReplies: string[] = [
-  'Pues mira, el piso tiene dos habitaciones y da a la calle. ¿Cuánto tiempo llevas buscando?',
-  'Ya, eso pasa mucho por esta zona. ¿Y qué presupuesto tienes al mes?',
-  'Vale, con eso se puede encontrar algo, aunque justito. ¿Te importa compartir con alguien?',
-  'Entiendo. Oye, ¿y para cuándo necesitas entrar en el piso?',
-  'Perfecto, eso nos da margen. ¿Tienes nómina o aval? Es que el casero lo pide.',
+  'Pues mira, el piso tiene dos habitaciones y da a la calle. ¿Cuánto tiempo llevas buscando?\n@@@\nDos semanas, más o menos | Two weeks, more or less\nMucho tiempo ya | A long time already\nAcabo de empezar | I just started',
+  'Ya, eso pasa mucho por esta zona. ¿Y qué presupuesto tienes al mes?\n@@@\nUnos ochocientos euros | About eight hundred euros\nNo mucho, la verdad | Not much, honestly',
+  'Vale, con eso se puede encontrar algo, aunque justito. ¿Te importa compartir con alguien?\n@@@\nNo me importa | I don\'t mind\nPrefiero vivir solo | I prefer living alone',
+  'Entiendo. Oye, ¿y para cuándo necesitas entrar en el piso?\n@@@\nLo antes posible | As soon as possible\nEl mes que viene | Next month',
+  'Perfecto, eso nos da margen. ¿Tienes nómina o aval? Es que el casero lo pide.\n@@@\nSí, tengo nómina | Yes, I have a payslip\n¿Qué es un aval? | What is a guarantor?',
 ];
 
 export const mockArticle: ArticleResponse = {

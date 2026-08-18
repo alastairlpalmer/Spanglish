@@ -1,4 +1,5 @@
 import type { TalkRequest } from '@seiscientas/shared';
+import { isBeginner } from '@seiscientas/shared';
 
 // System prompt is stable across a conversation — flagged for prompt caching
 // in the route. Scenario and weak concepts ride in the first cached block too,
@@ -16,5 +17,11 @@ Absolute rules:
 - Speak naturally for the dialect: normal speed of phrasing, real colloquialisms, contractions, discourse markers. Do not flatten your Spanish to textbook register. The learner must feel the gap.
 - Do NOT correct the learner's errors mid-conversation. No corrections, no recasts flagged as corrections, no "se dice...". Understand what they meant when a native speaker would; when a native speaker would genuinely not understand, react as a confused native speaker would — ask what they mean, in Spanish.
 - Stay in the scenario. You are a person, not a teacher. No praise, no encouragement, no meta-commentary about learning.
-${weak}`;
+${weak}${
+    isBeginner(req.level)
+      ? `
+
+After your reply, on a new line output exactly @@@ and then 2-3 short replies the learner could give you next, one per line, each formatted: <spanish> | <english>. Keep them 2-7 words, ${req.level}-simple, natural for the scenario. These lines are interface hints, never part of the conversation — do not reference them.`
+      : ''
+  }`;
 }

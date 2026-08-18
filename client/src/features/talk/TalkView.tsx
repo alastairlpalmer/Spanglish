@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReviewResponse, TalkRequest } from '@seiscientas/shared';
+import { isBeginner } from '@seiscientas/shared';
 import { streamTalk } from '../../lib/stream';
 import { apiPost, friendlyApiError } from '../../lib/api';
 import { useProfile } from '../../shell/ProfileContext';
@@ -27,6 +28,30 @@ interface Message {
   content: string;
 }
 
+interface Suggestion {
+  es: string;
+  en: string;
+}
+
+// Beginner replies arrive as: <tutor text>\n@@@\n<es | en> lines. The
+// suggestions are interface hints — stripped from history and never spoken.
+function splitReply(raw: string): { text: string; suggestions: Suggestion[] } {
+  const i = raw.indexOf('@@@');
+  if (i === -1) return { text: raw.trim(), suggestions: [] };
+  const suggestions = raw
+    .slice(i + 3)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [es, en] = l.split('|').map((s) => s.trim());
+      return es ? { es, en: en ?? '' } : null;
+    })
+    .filter((s): s is Suggestion => s !== null)
+    .slice(0, 3);
+  return { text: raw.slice(0, i).trim(), suggestions };
+}
+
 // Conversation state lives only in this component, and the shell unmounts it
 // on every tab switch — an accidental tap on the bottom bar must not destroy
 // ten minutes of talking. Saved here on unmount, restored on mount, cleared
@@ -38,6 +63,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   const [scenario, setScenario] = useState<string | null>(() => savedTalk?.scenario ?? null);
   const [messages, setMessages] = useState<Message[]>(() => savedTalk?.messages ?? []);
   const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [typed, setTyped] = useState('');
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -83,6 +109,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   async function send(text: string): Promise<void> {
     if (!scenario || streamingText !== null) return;
     setError(null);
+    setSuggestions([]);
     const next: Message[] = [...messages, { role: 'user', content: text }];
     setMessages(next);
     setStreamingText('');
@@ -113,12 +140,14 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
         setStreamingText(acc);
       },
       onDone: () => {
-        setMessages([...next, { role: 'assistant', content: acc }]);
+        const { text: replyText, suggestions: sugs } = splitReply(acc);
+        setMessages([...next, { role: 'assistant', content: replyText }]);
+        setSuggestions(sugs);
         setStreamingText(null);
-        if (!quiet) speak(acc, locale);
+        if (!quiet) speak(replyText, locale);
       },
       onError: (message) => {
-        if (acc) setMessages([...next, { role: 'assistant', content: acc }]);
+        if (acc) setMessages([...next, { role: 'assistant', content: splitReply(acc).text }]);
         setStreamingText(null);
         setError({ source: 'send', message });
       },
@@ -217,10 +246,35 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
         ))}
         {streamingText !== null && (
           <div className="bubble tutor" lang="es">
-            {streamingText || '…'}
+            {splitReply(streamingText).text || '…'}
           </div>
         )}
       </div>
+
+      {/* Beginner ladder: tappable candidate replies. The wall becomes a door. */}
+      {suggestions.length > 0 && isBeginner(profile.level) && !busy && (
+        <div className="stack" style={{ gap: 6 }}>
+          <p className="eyebrow" style={{ marginBottom: 0 }}>
+            you could say
+          </p>
+          {suggestions.map((s) => (
+            <button
+              key={s.es}
+              className="btn block"
+              style={{ textAlign: 'left', minHeight: 44 }}
+              onClick={() => void send(s.es)}
+            >
+              <span lang="es">{s.es}</span>
+              {s.en && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {' '}
+                  — {s.en}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {ringerNote && (
         <p className="muted" style={{ fontSize: 13 }}>

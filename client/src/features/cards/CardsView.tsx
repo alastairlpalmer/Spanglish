@@ -9,7 +9,9 @@ import { overallMastery, useBucketStats } from './useBucketStats';
 import { BucketBoard, activeBucketList } from './BucketBoard';
 import { BucketView } from './BucketView';
 import { CognateLab } from './CognateLab';
+import { INTAKE_WARN_DUE } from './BucketView';
 import { ReviewQueue } from './ReviewQueue';
+import { unlockSynthesis } from '../../speech/synthesis';
 import { generateCards } from './generate';
 import { initCheckResolution } from './checks';
 import { friendlyApiError } from '../../lib/api';
@@ -51,6 +53,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [intakeWarn, setIntakeWarn] = useState(false);
 
   useSessionTimer(userId, 'cards', profile.daily_minutes);
 
@@ -135,9 +138,38 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
               onChange={(e) => setTopic(e.target.value)}
               placeholder="Any topic, or leave blank for high-frequency words"
             />
-            <button className="btn block" disabled={generating} onClick={() => void generateFree()}>
+            <button
+              className="btn block"
+              disabled={generating}
+              onClick={() => {
+                if (totalDue > INTAKE_WARN_DUE) setIntakeWarn(true);
+                else void generateFree();
+              }}
+            >
               {generating ? 'finding words' : 'Generate 20 cards'}
             </button>
+            {intakeWarn && (
+              <div className="stack" style={{ gap: 8 }}>
+                <p style={{ fontSize: 14 }}>
+                  {totalDue} cards are already waiting — new words stack on top of that queue.
+                </p>
+                <div className="grade-row">
+                  <button className="btn" onClick={() => setIntakeWarn(false)}>
+                    Clear queue first
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ borderColor: 'var(--ochre)' }}
+                    onClick={() => {
+                      setIntakeWarn(false);
+                      void generateFree();
+                    }}
+                  >
+                    Add anyway
+                  </button>
+                </div>
+              </div>
+            )}
             {genError && <p className="error-line">{genError}</p>}
           </div>
         )}
@@ -162,7 +194,12 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
           <button
             key={key}
             className={section === key ? 'active' : ''}
-            onClick={() => setSection(key)}
+            onClick={() => {
+              // The chip tap doubles as the iOS TTS unlock — frases auto-speaks
+              // its sentences outside any gesture.
+              unlockSynthesis();
+              setSection(key);
+            }}
           >
             {label}
           </button>
@@ -179,7 +216,13 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
               No phrases due. Sentences come back here when their words do.
             </p>
           ) : (
-            <ReviewQueue
+            <>
+              <p className="muted" style={{ fontSize: 13 }}>
+                {profile.quiet_mode
+                  ? 'Read the full sentence, hold the meaning, then check.'
+                  : 'Ear training: hear the sentence first — no text until you reveal.'}
+              </p>
+              <ReviewQueue
               userId={userId}
               queue={phraseQueue}
               totalDue={totalDueRecognition}
@@ -187,6 +230,7 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
               refresh={afterChange}
               onExhausted={() => undefined}
             />
+            </>
           ))}
       </div>
     </div>

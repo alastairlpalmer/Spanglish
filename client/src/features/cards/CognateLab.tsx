@@ -10,6 +10,7 @@ import { useProfile } from '../../shell/ProfileContext';
 import { speak, synthesisAvailable } from '../../speech/synthesis';
 import { localeForDialect } from '../../speech/recognition';
 import { addWordPair } from './createCards';
+import { PowerVerbs } from './PowerVerbs';
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -74,12 +75,23 @@ function RulePractice({
       <p className="queue-count mono">
         {index + 1} / {order.length} · {rule.pattern}
       </p>
+      {/* The rule rides along during practice — apply it, don't recall it. */}
+      <p className="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+        {rule.explanation}
+      </p>
       <div className="panel stack" style={{ textAlign: 'center', gap: 8 }}>
         <p style={{ fontSize: 24 }}>{current.en}</p>
         {revealed ? (
-          <p lang="es" style={{ fontSize: 24, color: 'var(--ochre)' }}>
-            {current.es}
-          </p>
+          <>
+            <p lang="es" style={{ fontSize: 24, color: 'var(--ochre)' }}>
+              {current.es}
+            </p>
+            {rule.caveat && (
+              <p className="muted" style={{ fontSize: 12 }}>
+                {rule.caveat}
+              </p>
+            )}
+          </>
         ) : (
           <button className="btn block" onClick={() => {
             setRevealed(true);
@@ -223,10 +235,11 @@ export function CognateLab({ userId }: { userId: string }): JSX.Element {
       <div className="panel stack" style={{ gap: 4 }}>
         <p className="eyebrow">palabras latinas</p>
         <p style={{ fontSize: 14 }}>
-          A dozen suffix rules turn thousands of English words into Spanish you already own. Learn
-          the rule, not the words.
+          {COGNATE_RULES.length} rules turn thousands of English words into Spanish you already
+          own. Learn the rule, not the words — then drive the verbs with a power verb below.
         </p>
       </div>
+      <PowerVerbs />
       {COGNATE_RULES.map((r) => {
         const known = r.words.filter((w) => inDeck.has(w.es.toLowerCase())).length;
         return (

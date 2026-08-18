@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { COGNATE_RULES, COGNATE_WORD_COUNT, cognateRule } from './cognates';
 
-// Suffixes each rule's Spanish words may legitimately end with.
-const ALLOWED_ES_SUFFIXES: Record<string, string[]> = {
+// Suffixes each rule's Spanish words may legitimately end with. The es- rule
+// is a prefix rule: null here, checked separately below.
+const ALLOWED_ES_SUFFIXES: Record<string, string[] | null> = {
   cion: ['ción'],
   sion: ['sión'],
   dad: ['dad', 'tad'],
@@ -15,6 +16,16 @@ const ALLOWED_ES_SUFFIXES: Record<string, string[]> = {
   ista: ['ista', 'ismo'],
   ivo: ['ivo'],
   ario: ['ario', 'orio'],
+  mente: ['mente'],
+  ar: ['ar'],
+  ificar: ['ificar'],
+  izar: ['izar'],
+  cionverb: ['ar'],
+  mento: ['mento'],
+  ura: ['ura'],
+  ido: ['ido'],
+  or: ['or'],
+  es: null,
 };
 
 describe('cognate rules', () => {
@@ -24,14 +35,18 @@ describe('cognate rules', () => {
     for (const slug of slugs) expect(ALLOWED_ES_SUFFIXES[slug]).toBeDefined();
   });
 
-  it('every Spanish word ends with an allowed suffix for its rule', () => {
+  it('every Spanish word matches its rule pattern', () => {
     for (const rule of COGNATE_RULES) {
-      const allowed = ALLOWED_ES_SUFFIXES[rule.slug]!;
+      const allowed = ALLOWED_ES_SUFFIXES[rule.slug];
       for (const w of rule.words) {
-        expect(
-          allowed.some((s) => w.es.endsWith(s)),
-          `${rule.slug}: ${w.es}`,
-        ).toBe(true);
+        if (allowed === null) {
+          expect(w.es.startsWith('es'), `${rule.slug}: ${w.es}`).toBe(true);
+        } else {
+          expect(
+            allowed!.some((s) => w.es.endsWith(s)),
+            `${rule.slug}: ${w.es}`,
+          ).toBe(true);
+        }
       }
     }
   });
@@ -52,7 +67,7 @@ describe('cognate rules', () => {
     for (const rule of COGNATE_RULES) {
       expect(rule.words.length, rule.slug).toBeGreaterThanOrEqual(12);
     }
-    expect(COGNATE_WORD_COUNT).toBeGreaterThanOrEqual(200);
+    expect(COGNATE_WORD_COUNT).toBeGreaterThanOrEqual(350);
   });
 
   it('looks up rules by slug', () => {

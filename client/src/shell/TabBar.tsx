@@ -43,20 +43,33 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'log', label: 'Log' },
 ];
 
-export function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }): JSX.Element {
+export function TabBar({
+  active,
+  onChange,
+  badges,
+}: {
+  active: Tab;
+  onChange: (t: Tab) => void;
+  /** Small count bubbles per tab (e.g. cards due). Zero/absent = no badge. */
+  badges?: Partial<Record<Tab, number>>;
+}): JSX.Element {
   return (
     <nav className="tab-bar">
-      {TABS.map((t) => (
-        <button
-          key={t.id}
-          className={active === t.id ? 'active' : ''}
-          onClick={() => onChange(t.id)}
-          aria-current={active === t.id ? 'page' : undefined}
-        >
-          {ICONS[t.id]}
-          {t.label}
-        </button>
-      ))}
+      {TABS.map((t) => {
+        const badge = badges?.[t.id] ?? 0;
+        return (
+          <button
+            key={t.id}
+            className={active === t.id ? 'active' : ''}
+            onClick={() => onChange(t.id)}
+            aria-current={active === t.id ? 'page' : undefined}
+          >
+            {ICONS[t.id]}
+            {t.label}
+            {badge > 0 && <span className="tab-badge">{badge > 99 ? '99+' : badge}</span>}
+          </button>
+        );
+      })}
     </nav>
   );
 }

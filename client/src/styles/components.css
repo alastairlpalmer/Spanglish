@@ -734,6 +734,7 @@
   inset: 0 auto 0 0;
   background: var(--line);
   border-radius: 2px;
+  transition: width 0.5s ease;
 }
 
 .mastery-bar .mastered {
@@ -741,6 +742,81 @@
   inset: 0 auto 0 0;
   background: var(--ochre);
   border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* --- motion: section/mode/card entrances --- */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-op {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fade-up 0.15s ease-out;
+}
+
+/* Cards entering the stage fade opacity only — the swipe transform must not
+   fight a transform animation. */
+.card-stage > * {
+  animation: fade-op 0.18s ease-out;
+}
+
+/* --- grade notice (schedule feedback + undo) --- */
+.grade-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  animation: fade-up 0.15s ease-out;
+}
+
+/* --- tab badge (cards due) --- */
+.tab-bar button {
+  position: relative;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(8px);
+  background: var(--ochre);
+  color: var(--ground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .card-stage > *,
+  .grade-notice {
+    animation: none;
+  }
+  .mastery-bar .learning,
+  .mastery-bar .mastered {
+    transition: none;
+  }
 }
 
 /* --- diary starters (beginner scaffolding) --- */

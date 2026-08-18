@@ -40,7 +40,14 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
 
   // The board is home; the daily review is one tap ("Review N due").
   const [mode, setMode] = useState<Mode>({ kind: 'board' });
-  const [section, setSection] = useState<Section>('vocab');
+  // The section you were in is the section you come back to.
+  const [section, setSection] = useState<Section>(() => {
+    const s = localStorage.getItem('cards-section');
+    return s === 'latinos' || s === 'frases' ? s : 'vocab';
+  });
+  useEffect(() => {
+    localStorage.setItem('cards-section', section);
+  }, [section]);
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -162,23 +169,26 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
         ))}
       </div>
 
-      {section === 'vocab' && vocabContent}
-      {section === 'latinos' && <CognateLab userId={userId} />}
-      {section === 'frases' &&
-        (phraseQueue.length === 0 ? (
-          <p className="muted" style={{ fontSize: 14 }}>
-            No phrases due. Sentences come back here when their words do.
-          </p>
-        ) : (
-          <ReviewQueue
-            userId={userId}
-            queue={phraseQueue}
-            totalDue={totalDueRecognition}
-            sentenceFirst
-            refresh={afterChange}
-            onExhausted={() => undefined}
-          />
-        ))}
+      {/* key remounts the section wrapper so the fade runs on every switch */}
+      <div key={section} className="fade-in">
+        {section === 'vocab' && <div key={mode.kind} className="fade-in">{vocabContent}</div>}
+        {section === 'latinos' && <CognateLab userId={userId} />}
+        {section === 'frases' &&
+          (phraseQueue.length === 0 ? (
+            <p className="muted" style={{ fontSize: 14 }}>
+              No phrases due. Sentences come back here when their words do.
+            </p>
+          ) : (
+            <ReviewQueue
+              userId={userId}
+              queue={phraseQueue}
+              totalDue={totalDueRecognition}
+              sentenceFirst
+              refresh={afterChange}
+              onExhausted={() => undefined}
+            />
+          ))}
+      </div>
     </div>
   );
 }

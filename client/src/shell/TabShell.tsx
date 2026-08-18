@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TabBar, type Tab } from './TabBar';
 import { useProfile } from './ProfileContext';
+import { db } from '../db/dexie';
 import { TodayView } from '../features/today/TodayView';
 import { CardsView } from '../features/cards/CardsView';
 import { TalkView } from '../features/talk/TalkView';
@@ -22,10 +23,32 @@ export function useOnline(): boolean {
   return online;
 }
 
+/** Cards-due badge count. Re-checked on every tab change — cheap indexed
+ *  count, and tab switches are exactly when the number could have moved. */
+function useDueBadge(userId: string, tab: Tab): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void db.cards
+      .where('due')
+      .belowOrEqual(new Date().toISOString())
+      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .count()
+      .then((n) => {
+        if (live) setCount(n);
+      });
+    return () => {
+      live = false;
+    };
+  }, [userId, tab]);
+  return count;
+}
+
 export function TabShell({ userId }: { userId: string }): JSX.Element {
   const [tab, setTab] = useState<Tab>('today');
   const { profile, update } = useProfile();
   const online = useOnline();
+  const dueBadge = useDueBadge(userId, tab);
 
   return (
     <div className="app-shell">
@@ -53,7 +76,7 @@ export function TabShell({ userId }: { userId: string }): JSX.Element {
         {tab === 'reading' && <ReadTab userId={userId} />}
         {tab === 'log' && <LogView userId={userId} />}
       </main>
-      <TabBar active={tab} onChange={setTab} />
+      <TabBar active={tab} onChange={setTab} badges={{ cards: tab === 'cards' ? 0 : dueBadge }} />
     </div>
   );
 }

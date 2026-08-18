@@ -128,6 +128,7 @@ export function BucketView({
             // re-admit just-graded cards (steps 1-3 land inside 7 days) and
             // loop them to step 4 with zero real spacing.
             refresh={async () => setAhead((q) => (q && q.length > 0 ? q.slice(1) : q))}
+            onRestore={(card) => setAhead((q) => (q ? [card, ...q] : q))}
             onExhausted={() => {
               setAhead(null);
               void refresh();
@@ -185,6 +186,7 @@ export function BucketView({
           userId={userId}
           queue={test}
           refresh={async () => setTest((q) => (q && q.length > 0 ? q.slice(1) : q))}
+          onRestore={(card) => setTest((q) => (q ? [card, ...q] : q))}
           onExhausted={() => {
             setTest(null);
             setSheet(null);

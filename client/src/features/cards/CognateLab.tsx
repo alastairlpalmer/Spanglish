@@ -164,16 +164,17 @@ function Practice({
       <p className="queue-count mono">
         {index + 1} / {items.length} · {current.rule.pattern}
       </p>
-      {/* The rule rides along during practice — apply it, don't recall it. */}
-      <p className="muted" style={{ fontSize: 12, textAlign: 'center' }}>
-        {current.rule.explanation}
-      </p>
       <div className="panel stack" style={{ textAlign: 'center', gap: 8 }}>
         <p style={{ fontSize: 24 }}>{current.en}</p>
         {revealed ? (
           <>
             <p lang="es" style={{ fontSize: 24, color: 'var(--ochre)' }}>
               {current.es}
+            </p>
+            {/* The rule arrives as feedback, not a crib: guess first, then
+                learn why. Only the bare pattern shows before the reveal. */}
+            <p className="muted" style={{ fontSize: 12 }}>
+              {current.rule.explanation}
             </p>
             {current.rule.caveat && (
               <p className="muted" style={{ fontSize: 12 }}>

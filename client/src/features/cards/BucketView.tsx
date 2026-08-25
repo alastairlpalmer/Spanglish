@@ -8,6 +8,7 @@ import {
   MAX_STEP,
   bucketMastery,
   bucketWords,
+  isPhraseCard,
   type BucketSlug,
   type BucketWord,
   type Card,
@@ -68,10 +69,13 @@ export function BucketView({
   const def = BUCKET_DEFS[slug];
 
   const refresh = useCallback(async () => {
+    // Phrase cards are excluded throughout this view: a bucket is a count of
+    // WORDS, and its review-ahead is vocabulary practice. Sentences live in
+    // the phrase deck.
     const all = await db.cards
       .where('bucket')
       .equals(slug)
-      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .and((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
       .toArray();
     setRows(all);
     setWords(bucketWords(all, slug));
@@ -101,7 +105,10 @@ export function BucketView({
     const cards = await db.cards
       .where('bucket')
       .equals(slug)
-      .and((c) => c.user_id === userId && c.deleted_at === null && c.due <= horizon)
+      .and(
+        (c) =>
+          c.user_id === userId && c.deleted_at === null && !isPhraseCard(c) && c.due <= horizon,
+      )
       .sortBy('due');
     setAhead(cards);
   }, [slug, userId]);

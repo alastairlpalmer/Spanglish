@@ -149,12 +149,15 @@ export function SwipeCard({
       )}
       {revealed ? (
         <div className="reveal">
-          <p>
-            <span className="mono" style={{ color: 'var(--ochre)' }}>
-              {card.word}
-            </span>{' '}
-            — {card.word_en}
-          </p>
+          {/* Phrase cards carry no word gloss — the sentence is the answer. */}
+          {card.word_en && (
+            <p>
+              <span className="mono" style={{ color: 'var(--ochre)' }}>
+                {card.word}
+              </span>{' '}
+              — {card.word_en}
+            </p>
+          )}
           {wordFirst ? (
             <>
               <p lang="es" style={{ fontSize: 15 }}>

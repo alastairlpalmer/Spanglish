@@ -124,6 +124,9 @@ create index if not exists diary_user_updated on diary (user_id, updated_at);
 -- won't touch a table that already exists). Nullable on purpose: a NOT NULL
 -- would wedge pushes from clients running the previous bundle.
 alter table cards add column if not exists bucket text;
+-- Word deck vs phrase deck. Null on rows written before the split; the client
+-- reads null as 'word'.
+alter table cards add column if not exists scope text;
 alter table profile add column if not exists extra_buckets text[];
 
 create table if not exists ai_calls (

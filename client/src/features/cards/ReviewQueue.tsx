@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { Card } from '@seiscientas/shared';
-import { MASTERY_STEP, isBeginner, scheduleCard } from '@seiscientas/shared';
+import { MASTERY_STEP, isPhraseCard, scheduleCard } from '@seiscientas/shared';
 import { SwipeCard } from './SwipeCard';
 import { ProductionCard } from './ProductionCard';
 import { putCard } from '../../db/repo';
@@ -56,6 +56,10 @@ async function crossedMastery(card: Card, newStep: number): Promise<boolean> {
         c.user_id === card.user_id &&
         c.deleted_at === null &&
         c.direction === other &&
+        // Same deck: a phrase card shares its word with the vocabulary card it
+        // came from, and without this the sentence would re-announce a mastery
+        // the word earned weeks earlier.
+        isPhraseCard(c) === isPhraseCard(card) &&
         (c.bucket ?? null) === (card.bucket ?? null) &&
         !!c.word &&
         c.word.trim().toLowerCase() === key &&
@@ -69,7 +73,6 @@ export function ReviewQueue({
   userId,
   queue,
   totalDue,
-  sentenceFirst,
   refresh,
   onRestore,
   onExhausted,
@@ -79,8 +82,6 @@ export function ReviewQueue({
   /** Full backlog behind the capped window; shown as "N of M due" when it
    *  exceeds the window so the count visibly shrinks with every grade. */
   totalDue?: number;
-  /** Phrase mode: always lead with the full sentence, even for beginners. */
-  sentenceFirst?: boolean;
   refresh: () => Promise<void>;
   /** Snapshot queues (test-me-now, get-ahead) drop the head on refresh, so
    *  undo needs the parent to put the restored card back. Re-query queues
@@ -126,7 +127,13 @@ export function ReviewQueue({
     if (g === 'miss') {
       setNotice({ text: '✗ back in 8 min', kind: 'miss', prev });
     } else if (await crossedMastery(prev, result.step)) {
-      setNotice({ text: `★ ${prev.word} — confident both ways`, kind: 'mastery', prev });
+      setNotice({
+        text: isPhraseCard(prev)
+          ? '★ sentence held both ways'
+          : `★ ${prev.word} — confident both ways`,
+        kind: 'mastery',
+        prev,
+      });
     } else {
       setNotice({ text: scheduleText(result.due), kind: 'got', prev });
     }
@@ -206,8 +213,11 @@ export function ReviewQueue({
             card={current}
             quietMode={profile.quiet_mode}
             dialect={profile.dialect}
-            wordFirst={sentenceFirst ? false : isBeginner(profile.level)}
-            listenFirst={sentenceFirst && !profile.quiet_mode}
+            // Presentation follows the card's deck, not the learner's level.
+            // A word card is always the bare word — at every level, because
+            // that is the exercise. Sentence exposure is the phrase deck's job.
+            wordFirst={!isPhraseCard(current)}
+            listenFirst={isPhraseCard(current) && !profile.quiet_mode}
             leech={current.seen >= 6 && current.step <= 1}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}

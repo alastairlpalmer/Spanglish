@@ -386,6 +386,7 @@ export function ReadView({ userId, mode }: { userId: string; mode: 'news' | 'sto
       accepts: null,
       concept: null,
       source: 'mined',
+      scope: 'word',
       step: 0,
       due: nowIso(),
       seen: 0,

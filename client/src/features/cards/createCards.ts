@@ -25,6 +25,7 @@ export async function addWordPair(opts: {
     accepts: null,
     concept: null,
     source: 'mined',
+    scope: 'word',
     step: 0,
     due: nowIso(),
     seen: 0,

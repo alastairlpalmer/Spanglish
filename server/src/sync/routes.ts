@@ -33,7 +33,7 @@ const TABLES: Record<string, TableConfig> = {
   cards: {
     columns: [
       'id', 'direction', 'bucket', 'es', 'en', 'word', 'word_en', 'note', 'prompt', 'answer',
-      'accepts', 'concept', 'source', 'step', 'due', 'seen', 'deleted_at', 'updated_at',
+      'accepts', 'concept', 'source', 'scope', 'step', 'due', 'seen', 'deleted_at', 'updated_at',
     ],
     conflict: ['id'],
     appendOnly: false,

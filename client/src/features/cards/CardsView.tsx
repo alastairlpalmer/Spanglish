@@ -10,6 +10,7 @@ import { BucketBoard, activeBucketList } from './BucketBoard';
 import { BucketView } from './BucketView';
 import { CognateLab } from './CognateLab';
 import { INTAKE_WARN_DUE } from './BucketView';
+import { PhraseDeck } from './PhraseDeck';
 import { ReviewQueue } from './ReviewQueue';
 import { unlockSynthesis } from '../../speech/synthesis';
 import { generateCards } from './generate';
@@ -20,14 +21,14 @@ import { useSessionTimer } from '../../session/useSessionTimer';
 
 type Mode = { kind: 'board' } | { kind: 'review' } | { kind: 'bucket'; slug: BucketSlug };
 
-// Top-level sections: the vocab machine, the Latin cognate lab, and
-// sentence-first phrase review over the same due cards.
+// Top-level sections: the vocab machine, the Latin cognate lab, and the
+// phrase deck — its own cards, its own queue, its own count. Vocabulary work
+// stays word-sized so a five-minute break is worth opening the app for.
 type Section = 'vocab' | 'latinos' | 'frases';
 
 export function CardsView({ userId, online }: { userId: string; online: boolean }): JSX.Element {
   const { profile } = useProfile();
-  const { queue, recognitionQueue, totalDue, totalDueRecognition, loading, refresh } =
-    useQueue(userId);
+  const { queue, phraseQueue, totalDue, totalDuePhrase, loading, refresh } = useQueue(userId);
   const stats = useBucketStats(userId);
   // Extras show when activated OR when they already hold cards; the overall
   // bar is summed over this same final list so header and rows always agree.
@@ -177,10 +178,6 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
     );
   }
 
-  // Phrase review: the same due cards, recognition side only, always led by
-  // the full sentence. Grading writes to the same scheduler.
-  const phraseQueue = recognitionQueue;
-
   return (
     <div className="stack">
       <div className="segment-row">
@@ -188,8 +185,8 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
           [
             ['vocab', 'vocabulario'],
             ['latinos', 'latinos'],
-            ['frases', 'frases'],
-          ] as const
+            ['frases', totalDuePhrase > 0 ? `frases · ${totalDuePhrase}` : 'frases'],
+          ] as Array<[Section, string]>
         ).map(([key, label]) => (
           <button
             key={key}
@@ -210,28 +207,14 @@ export function CardsView({ userId, online }: { userId: string; online: boolean 
       <div key={section} className="fade-in">
         {section === 'vocab' && <div key={mode.kind} className="fade-in">{vocabContent}</div>}
         {section === 'latinos' && <CognateLab userId={userId} />}
-        {section === 'frases' &&
-          (phraseQueue.length === 0 ? (
-            <p className="muted" style={{ fontSize: 14 }}>
-              No phrases due. Sentences come back here when their words do.
-            </p>
-          ) : (
-            <>
-              <p className="muted" style={{ fontSize: 13 }}>
-                {profile.quiet_mode
-                  ? 'Read the full sentence, hold the meaning, then check.'
-                  : 'Ear training: hear the sentence first — no text until you reveal.'}
-              </p>
-              <ReviewQueue
-              userId={userId}
-              queue={phraseQueue}
-              totalDue={totalDueRecognition}
-              sentenceFirst
-              refresh={afterChange}
-              onExhausted={() => undefined}
-            />
-            </>
-          ))}
+        {section === 'frases' && (
+          <PhraseDeck
+            userId={userId}
+            queue={phraseQueue}
+            totalDue={totalDuePhrase}
+            refresh={afterChange}
+          />
+        )}
       </div>
     </div>
   );

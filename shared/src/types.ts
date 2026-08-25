@@ -3,6 +3,11 @@ import type { ConceptSlug } from './concepts';
 export type SessionType = 'cards' | 'read' | 'talk' | 'grammar' | 'input' | 'tutor';
 export type CardDirection = 'recognition' | 'production';
 export type CardSource = 'generated' | 'mined' | 'drill';
+/** What a card asks of the learner. 'word' is the vocabulary deck — one word,
+ *  seconds per card. 'phrase' is whole-sentence work, which is a different
+ *  (slower) exercise and lives in its own deck. Null on legacy rows: read it
+ *  through cardScope(), never directly. */
+export type CardScope = 'word' | 'phrase';
 export type TargetKind = 'booked' | 'intended';
 export type Level = 'A0' | 'A1' | 'A2' | 'B1' | 'B2';
 
@@ -58,6 +63,9 @@ export interface Card {
   accepts: string[] | null;
   concept: ConceptSlug | null;
   source: CardSource;
+  // string | null, not CardScope: legacy rows (and rows pulled from a server
+  // that predates the column) carry null, which reads as 'word'.
+  scope: string | null;
   step: number;
   due: string;
   seen: number;

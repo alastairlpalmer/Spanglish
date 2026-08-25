@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ConceptSlug, Level } from '@seiscientas/shared';
-import { bucketMastery, isBeginner } from '@seiscientas/shared';
+import { bucketMastery, isBeginner, isPhraseCard } from '@seiscientas/shared';
 import { useToday } from './useToday';
 import { useProfile } from '../../shell/ProfileContext';
 import { Ring } from '../../components/Ring';
@@ -71,7 +71,7 @@ export function TodayView({ userId, onGo }: { userId: string; onGo: (tab: Tab) =
     void db.cards
       .where('due')
       .belowOrEqual(new Date().toISOString())
-      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .and((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
       .count()
       .then(setDueNow);
   }, [userId, today.minutesToday]);

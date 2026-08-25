@@ -90,6 +90,38 @@ export class SeisDb extends Dexie {
     this.version(4).stores({
       cards: 'id, due, dirty, updated_at, concept, bucket',
     });
+    // Word/phrase split. Two things happen here, and both are corrections of
+    // the same mistake — whole-sentence work living in the vocabulary deck:
+    //   1. every existing row is stamped scope 'word';
+    //   2. existing production rows are rewritten from "translate this whole
+    //      sentence" to "produce this word". Nothing is lost: the sentence
+    //      stays on es/en and comes back as a phrase card once the word is
+    //      mastered. Step and due survive, so no progress is reset.
+    // dirty: 1 so the rewrite reaches the server on the next push.
+    this.version(5)
+      .stores({ cards: 'id, due, dirty, updated_at, concept, bucket, scope' })
+      .upgrade((tx) =>
+        tx
+          .table('cards')
+          .toCollection()
+          .modify((c: Synced<Card>) => {
+            c.scope = 'word';
+            const sentenceLevel =
+              c.direction === 'production' &&
+              !!c.word &&
+              !!c.word_en &&
+              c.answer !== null &&
+              c.answer !== c.word;
+            if (sentenceLevel) {
+              c.prompt = c.word_en;
+              c.answer = c.word;
+              // Newer than whatever the server holds, or the LWW guard would
+              // let the old sentence-level row pull straight back down.
+              c.updated_at = new Date().toISOString();
+              c.dirty = 1;
+            }
+          }),
+      );
   }
 }
 

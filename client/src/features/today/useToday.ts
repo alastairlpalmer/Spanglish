@@ -2,6 +2,7 @@
 import {
   composePlan,
   blockCompletion,
+  isPhraseCard,
   projectedDate,
   minutesPerDayToRecover,
   type Plan,
@@ -67,10 +68,13 @@ export function useToday(userId: string): TodayState {
     let reduced = false;
     if (!plan) {
       const now = new Date().toISOString();
+      // Vocabulary only. The Cards block is sized in ~30s cards; counting
+      // sentence work here would size the block for an exercise it doesn't
+      // contain.
       const dueCards = await db.cards
         .where('due')
         .belowOrEqual(now)
-        .and((c) => c.user_id === userId && c.deleted_at === null)
+        .and((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
         .count();
       const composed = composePlan({
         dailyMinutes: daily_minutes,

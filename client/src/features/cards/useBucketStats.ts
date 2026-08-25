@@ -3,6 +3,7 @@ import {
   BUCKETS,
   BUCKET_DEFS,
   bucketMastery,
+  isPhraseCard,
   type BucketProgress,
   type BucketSlug,
 } from '@seiscientas/shared';
@@ -48,14 +49,17 @@ export function useBucketStats(userId: string): BucketStats {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    // The board counts words. Phrase cards are excluded from both sides of
+    // the general subtraction, or a general-bucket sentence would show up as
+    // vocabulary the learner never added.
     const bucketed = await db.cards
       .where('bucket')
       .anyOf([...BUCKETS])
-      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .and((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
       .toArray();
     setPerBucket(bucketMastery(bucketed));
     const total = await db.cards
-      .filter((c) => c.user_id === userId && c.deleted_at === null)
+      .filter((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
       .count();
     setGeneralCount(total - bucketed.length);
     setLoading(false);

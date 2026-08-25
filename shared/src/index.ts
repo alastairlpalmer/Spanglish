@@ -1,5 +1,6 @@
 export * from './buckets';
 export * from './cognates';
+export * from './phrases';
 export * from './concepts';
 export * from './types';
 export * from './schemas';

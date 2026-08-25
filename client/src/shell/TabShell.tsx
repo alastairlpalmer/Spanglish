@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isPhraseCard } from '@seiscientas/shared';
 import { TabBar, type Tab } from './TabBar';
 import { useProfile } from './ProfileContext';
 import { db } from '../db/dexie';
@@ -23,7 +24,9 @@ export function useOnline(): boolean {
   return online;
 }
 
-/** Cards-due badge count. Re-checked on every tab change — cheap indexed
+/** Cards-due badge count — the vocabulary deck only. Phrase cards carry their
+ *  own count inside the Cards tab; putting them in the badge would make a
+ *  five-minute break look like a half-hour one. Re-checked on every tab change — cheap indexed
  *  count, and tab switches are exactly when the number could have moved. */
 function useDueBadge(userId: string, tab: Tab): number {
   const [count, setCount] = useState(0);
@@ -32,7 +35,7 @@ function useDueBadge(userId: string, tab: Tab): number {
     void db.cards
       .where('due')
       .belowOrEqual(new Date().toISOString())
-      .and((c) => c.user_id === userId && c.deleted_at === null)
+      .and((c) => c.user_id === userId && c.deleted_at === null && !isPhraseCard(c))
       .count()
       .then((n) => {
         if (live) setCount(n);

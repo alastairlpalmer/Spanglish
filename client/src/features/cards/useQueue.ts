@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Card } from '@seiscientas/shared';
+import { isPhraseCard } from '@seiscientas/shared';
 import { db } from '../../db/dexie';
 
 // Daily queue cap: an uncapped backlog after a missed week is how SRS users
@@ -7,24 +8,26 @@ import { db } from '../../db/dexie';
 const DAILY_QUEUE_CAP = 60;
 
 export interface QueueState {
+  /** The vocabulary deck: word cards only, seconds each. This is "the queue"
+   *  everywhere else in the app — the daily number, the badge, the plan. */
   queue: Card[];
-  /** Recognition-only window for the phrase view. Filtered from the FULL due
-   *  list, not the mixed window — with a big backlog the earliest 60 could
-   *  happen to be all production cards, and frases would wrongly show empty. */
-  recognitionQueue: Card[];
-  /** Full backlog size, not just the capped window — the honest number. */
+  /** The phrase deck, scheduled by the same SM-2 but counted separately. It
+   *  never inflates the daily vocabulary number: sentence work is a longer
+   *  sitting the learner opts into, not a tax on a five-minute break. */
+  phraseQueue: Card[];
+  /** Full vocabulary backlog, not just the capped window — the honest number. */
   totalDue: number;
-  /** Recognition-only slice of the backlog (the phrase view's population). */
-  totalDueRecognition: number;
+  /** Full phrase backlog. */
+  totalDuePhrase: number;
   loading: boolean;
   refresh: () => Promise<void>;
 }
 
 export function useQueue(userId: string): QueueState {
   const [queue, setQueue] = useState<Card[]>([]);
-  const [recognitionQueue, setRecognitionQueue] = useState<Card[]>([]);
+  const [phraseQueue, setPhraseQueue] = useState<Card[]>([]);
   const [totalDue, setTotalDue] = useState(0);
-  const [totalDueRecognition, setTotalDueRecognition] = useState(0);
+  const [totalDuePhrase, setTotalDuePhrase] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -34,11 +37,14 @@ export function useQueue(userId: string): QueueState {
       .belowOrEqual(now)
       .and((c) => c.user_id === userId && c.deleted_at === null)
       .sortBy('due');
-    const recognition = due.filter((c) => c.direction === 'recognition');
-    setQueue(due.slice(0, DAILY_QUEUE_CAP));
-    setRecognitionQueue(recognition.slice(0, DAILY_QUEUE_CAP));
-    setTotalDue(due.length);
-    setTotalDueRecognition(recognition.length);
+    // Split from the FULL due list, not the capped window: with a big backlog
+    // the earliest 60 could all be one deck and the other would read empty.
+    const words = due.filter((c) => !isPhraseCard(c));
+    const phrases = due.filter((c) => isPhraseCard(c));
+    setQueue(words.slice(0, DAILY_QUEUE_CAP));
+    setPhraseQueue(phrases.slice(0, DAILY_QUEUE_CAP));
+    setTotalDue(words.length);
+    setTotalDuePhrase(phrases.length);
     setLoading(false);
   }, [userId]);
 
@@ -46,5 +52,5 @@ export function useQueue(userId: string): QueueState {
     void refresh();
   }, [refresh]);
 
-  return { queue, recognitionQueue, totalDue, totalDueRecognition, loading, refresh };
+  return { queue, phraseQueue, totalDue, totalDuePhrase, loading, refresh };
 }

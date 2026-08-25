@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReviewResponse, TalkRequest } from '@seiscientas/shared';
-import { isBeginner } from '@seiscientas/shared';
+import { isBeginner, isPhraseCard } from '@seiscientas/shared';
 import { streamTalk } from '../../lib/stream';
 import { apiPost, friendlyApiError } from '../../lib/api';
 import { useProfile } from '../../shell/ProfileContext';
@@ -101,6 +101,9 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
           c.deleted_at === null &&
           c.bucket != null &&
           c.direction === 'recognition' &&
+          // Phrase cards carry a word the learner already mastered; it is not
+          // a shaky target worth pushing into a conversation.
+          !isPhraseCard(c) &&
           !!c.word &&
           c.step >= 1 &&
           c.step <= 3,

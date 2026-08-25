@@ -53,6 +53,7 @@ export async function generateCards(opts: {
     accepts: null,
     concept: null,
     source: 'generated',
+    scope: 'word',
     step: 0,
     due: nowIso(),
     seen: 0,
@@ -82,8 +83,12 @@ export async function generateCards(opts: {
       ...base(c),
       id: uuid(),
       direction: 'production',
-      prompt: c.en,
-      answer: c.es,
+      // The WORD, not the sentence. Producing the whole sentence is phrase
+      // work — a different exercise, on its own deck, unlocked once the word
+      // is mastered. Mixing it in here is what turned a five-minute vocabulary
+      // break into three slow translations.
+      prompt: c.wordEn,
+      answer: c.word,
       // Production comes due a day after its recognition twin, so the learner
       // meets the word before being asked to produce it.
       due: new Date(Date.now() + 86_400_000).toISOString(),

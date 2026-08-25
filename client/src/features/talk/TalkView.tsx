@@ -5,6 +5,7 @@ import { streamTalk } from '../../lib/stream';
 import { apiPost, friendlyApiError } from '../../lib/api';
 import { useProfile } from '../../shell/ProfileContext';
 import { useSessionTimer } from '../../session/useSessionTimer';
+import { useAnswerMode } from '../../speech/useAnswerMode';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { speak, stopSpeaking, synthesisAvailable } from '../../speech/synthesis';
@@ -84,6 +85,7 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   const quiet = profile.quiet_mode;
 
   const hold = useHoldToTalk(locale, (text) => void send(text));
+  const answer = useAnswerMode();
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -273,7 +275,8 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
   }
 
   const busy = streamingText !== null;
-  const showTyped = quiet || !hold.available || hold.state === 'failed';
+  const voicePossible = !quiet && hold.available && hold.state !== 'failed';
+  const showTyped = !voicePossible || answer.typing;
 
   return (
     <div className="stack" style={{ height: '100%' }}>
@@ -403,6 +406,12 @@ export function TalkView({ userId, online }: { userId: string; online: boolean }
                 : 'hold to talk'}
           </button>
         </div>
+      )}
+
+      {voicePossible && (
+        <button className="btn quiet block" style={{ marginTop: 8 }} onClick={answer.toggle}>
+          {answer.typing ? 'speak instead' : 'type instead'}
+        </button>
       )}
     </div>
   );

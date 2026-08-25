@@ -12,6 +12,7 @@ import { apiPost, friendlyApiError } from '../../lib/api';
 import { formatDate } from '../../lib/time';
 import { useProfile } from '../../shell/ProfileContext';
 import { useOnline } from '../../shell/TabShell';
+import { useAnswerMode } from '../../speech/useAnswerMode';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { addWordPair } from '../cards/createCards';
@@ -101,6 +102,7 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
   const hold = useHoldToTalk(localeForDialect(profile.dialect), (text) => {
     setDraft((d) => (d ? `${d} ${text}` : text));
   });
+  const answer = useAnswerMode();
 
   const reload = useCallback(async () => {
     setEntries(await diaryEntries(userId));
@@ -143,7 +145,10 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
     }
   }
 
-  const showVoice = !profile.quiet_mode && hold.available && hold.state !== 'failed';
+  // The textarea is always there — dictation is the extra. In typing mode the
+  // big button just takes up the screen, so it goes away entirely.
+  const voicePossible = !profile.quiet_mode && hold.available && hold.state !== 'failed';
+  const showVoice = voicePossible && !answer.typing;
 
   return (
     <div className="panel stack">
@@ -270,6 +275,11 @@ export function DiarySection({ userId }: { userId: string }): JSX.Element {
             {hold.state === 'holding' ? 'release to add' : 'hold to speak your entry'}
           </button>
         </div>
+      )}
+      {voicePossible && (
+        <button className="btn quiet block" onClick={answer.toggle}>
+          {answer.typing ? 'speak it instead' : 'type it instead'}
+        </button>
       )}
       <button className="btn primary block" disabled={!draft.trim()} onClick={() => void save()}>
         Save entry

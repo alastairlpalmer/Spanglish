@@ -1,10 +1,12 @@
 // Production card: English prompt, learner produces Spanish. Voice mode is
 // hold-to-talk (one gesture per attempt — the iOS constraint made
-// intentional); quiet mode is a text field. Checking is semantic, never
-// string comparison.
+// intentional); typing is always one tap away, because "I cannot speak right
+// now" is a fact about the room, not a settings trip. Checking is semantic,
+// never string comparison.
 
 import { useState } from 'react';
 import type { Card, CheckResponse } from '@seiscientas/shared';
+import { useAnswerMode } from '../../speech/useAnswerMode';
 import { useHoldToTalk } from '../../speech/useHoldToTalk';
 import { localeForDialect } from '../../speech/recognition';
 import { checkProduction } from './checks';
@@ -32,6 +34,7 @@ export function ProductionCard({
   const [stage, setStage] = useState<Stage>({ name: 'answering' });
 
   const hold = useHoldToTalk(localeForDialect(dialect), (text) => void submit(text));
+  const answer = useAnswerMode();
 
   async function submit(text: string): Promise<void> {
     if (!text.trim() || stage.name !== 'answering') return;
@@ -53,7 +56,10 @@ export function ProductionCard({
     }
   }
 
-  const showTyped = quietMode || !hold.available || hold.state === 'failed';
+  // Voice is unavailable (or broken) => typing, with no way back. Otherwise
+  // the learner's in-the-moment choice decides, and the switch stays offered.
+  const voicePossible = !quietMode && hold.available && hold.state !== 'failed';
+  const showTyped = !voicePossible || answer.typing;
 
   if (stage.name === 'result') {
     return (
@@ -88,7 +94,7 @@ export function ProductionCard({
 
   return (
     <div className="review-card" style={{ position: 'relative' }}>
-      <p className="eyebrow">say it in Spanish</p>
+      <p className="eyebrow">{showTyped ? 'write it in Spanish' : 'say it in Spanish'}</p>
       <p style={{ fontSize: 20, lineHeight: 1.4 }}>{card.prompt}</p>
 
       {stage.name === 'checking' ? (
@@ -106,6 +112,7 @@ export function ProductionCard({
             placeholder="Escribe en español"
             lang="es"
             autoCapitalize="off"
+            autoFocus
           />
           <button
             className="btn primary block"
@@ -136,6 +143,14 @@ export function ProductionCard({
                 : 'hold to answer'}
           </button>
         </div>
+      )}
+
+      {/* Only offered when voice is actually possible — when it isn't, typing
+          is the only path and a switch that leads nowhere is noise. */}
+      {stage.name !== 'checking' && voicePossible && (
+        <button className="btn quiet block" style={{ marginTop: 8 }} onClick={answer.toggle}>
+          {answer.typing ? 'speak it instead' : 'type it instead'}
+        </button>
       )}
     </div>
   );

@@ -18,6 +18,7 @@ export function SwipeCard({
   wordFirst: wordFirstProp,
   listenFirst,
   leech,
+  recall,
   reducedMotion,
   onGrade,
 }: {
@@ -33,6 +34,10 @@ export function SwipeCard({
   /** Repeatedly-missed card: always show full sentence context (the bare
    *  word clearly is not sticking on its own). */
   leech?: boolean;
+  /** Production card answered by self-report: the English prompt on the
+   *  front, the Spanish on reveal, graded by the learner. Wins over every
+   *  other presentation — this card is running backwards. */
+  recall?: boolean;
   reducedMotion: boolean;
   onGrade: (grade: 'got' | 'miss') => void;
 }): JSX.Element {
@@ -47,7 +52,7 @@ export function SwipeCard({
   // Listening card speaks itself as it arrives (the section chip tap
   // unlocked synthesis; each card is a fresh mount via its key).
   useEffect(() => {
-    if (listenFirst && !quietMode) speak(card.es ?? '', localeForDialect(dialect));
+    if (listenFirst && !quietMode && !recall) speak(card.es ?? '', localeForDialect(dialect));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,7 +116,12 @@ export function SwipeCard({
           palabra dura — shown with context
         </p>
       )}
-      {listenFirst && !revealed ? (
+      {recall ? (
+        <>
+          <p className="eyebrow">recall the Spanish</p>
+          <p style={{ fontSize: 32, lineHeight: 1.3 }}>{card.prompt ?? card.word_en ?? ''}</p>
+        </>
+      ) : listenFirst && !revealed ? (
         <p className="es" style={{ fontSize: 40, textAlign: 'center' }}>
           🔊
         </p>
@@ -132,7 +142,7 @@ export function SwipeCard({
           )}
         </p>
       )}
-      {!quietMode && (
+      {!quietMode && (!recall || revealed) && (
         <button
           className="btn quiet"
           // Pointer events must not bubble to the card: pointerup there reads
@@ -141,13 +151,31 @@ export function SwipeCard({
           onPointerUp={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            speak(wordFirst && !listenFirst ? word || es : es, localeForDialect(dialect));
+            const say = recall
+              ? card.answer || word || es
+              : wordFirst && !listenFirst
+                ? word || es
+                : es;
+            speak(say, localeForDialect(dialect));
           }}
         >
           listen
         </button>
       )}
-      {revealed ? (
+      {revealed && recall ? (
+        <div className="reveal">
+          <p className="es" lang="es" style={{ fontSize: 28 }}>
+            <span className="target">{card.answer ?? card.word ?? ''}</span>
+          </p>
+          {/* The sentence it was learnt in, as context for the self-grade. */}
+          {es && es !== card.answer && (
+            <p lang="es" style={{ fontSize: 15 }}>
+              {es}
+            </p>
+          )}
+          {card.note && <p className="note">{card.note}</p>}
+        </div>
+      ) : revealed ? (
         <div className="reveal">
           {/* Phrase cards carry no word gloss — the sentence is the answer. */}
           {card.word_en && (
@@ -172,7 +200,7 @@ export function SwipeCard({
         </div>
       ) : (
         <p className="muted" style={{ fontSize: 13 }}>
-          {listenFirst ? 'listen, then tap to reveal' : 'tap to reveal'}
+          {listenFirst && !recall ? 'listen, then tap to reveal' : 'tap to reveal'}
         </p>
       )}
     </div>

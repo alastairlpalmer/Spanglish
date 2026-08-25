@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Card } from '@seiscientas/shared';
 import { MASTERY_STEP, isPhraseCard, scheduleCard } from '@seiscientas/shared';
+import { ANSWER_MODES, useAnswerMode } from '../../speech/useAnswerMode';
 import { SwipeCard } from './SwipeCard';
 import { ProductionCard } from './ProductionCard';
 import { putCard } from '../../db/repo';
@@ -91,6 +92,7 @@ export function ReviewQueue({
   onExhausted: () => void;
 }): JSX.Element {
   const { profile } = useProfile();
+  const answer = useAnswerMode();
   const [pulse, setPulse] = useState(false);
   const [gradedInSet, setGradedInSet] = useState(0);
   const [setBreak, setSetBreak] = useState(false);
@@ -198,7 +200,7 @@ export function ReviewQueue({
       <p className="queue-count mono">{dueLabel}</p>
       {noticeBar}
       <div className="card-stage">
-        {current.direction === 'production' ? (
+        {current.direction === 'production' && !answer.recall ? (
           <ProductionCard
             key={current.id}
             card={current}
@@ -219,12 +221,13 @@ export function ReviewQueue({
             wordFirst={!isPhraseCard(current)}
             listenFirst={isPhraseCard(current) && !profile.quiet_mode}
             leech={current.seen >= 6 && current.step <= 1}
+            recall={current.direction === 'production'}
             reducedMotion={reducedMotion.current}
             onGrade={(g) => void grade(g)}
           />
         )}
       </div>
-      {current.direction === 'recognition' && (
+      {(current.direction === 'recognition' || answer.recall) && (
         <div className="grade-row">
           <button className="btn" style={{ borderColor: 'var(--clay)' }} onClick={() => void grade('miss')}>
             Missed it
@@ -232,6 +235,28 @@ export function ReviewQueue({
           <button className="btn" style={{ borderColor: 'var(--sage)' }} onClick={() => void grade('got')}>
             Knew it
           </button>
+        </div>
+      )}
+
+      {/* How production cards are answered. Outside the card because it must
+          be reachable in every mode, and the recall card is a SwipeCard that
+          knows nothing about answering. */}
+      {current.direction === 'production' && (
+        <div style={{ marginTop: 12 }}>
+          <div className="segment-row">
+            {ANSWER_MODES.map((m) => (
+              <button
+                key={m.mode}
+                className={answer.mode === m.mode ? 'active' : ''}
+                onClick={() => answer.setMode(m.mode)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="muted" style={{ textAlign: 'center', fontSize: 13, marginTop: 6 }}>
+            {ANSWER_MODES.find((m) => m.mode === answer.mode)?.hint}
+          </p>
         </div>
       )}
     </div>

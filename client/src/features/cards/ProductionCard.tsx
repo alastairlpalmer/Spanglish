@@ -56,8 +56,8 @@ export function ProductionCard({
     }
   }
 
-  // Voice is unavailable (or broken) => typing, with no way back. Otherwise
-  // the learner's in-the-moment choice decides, and the switch stays offered.
+  // Voice unavailable (or broken) falls back to typing regardless of the
+  // chosen mode. The mode switch itself lives in ReviewQueue, under the card.
   const voicePossible = !quietMode && hold.available && hold.state !== 'failed';
   const showTyped = !voicePossible || answer.typing;
 
@@ -143,14 +143,6 @@ export function ProductionCard({
                 : 'hold to answer'}
           </button>
         </div>
-      )}
-
-      {/* Only offered when voice is actually possible — when it isn't, typing
-          is the only path and a switch that leads nowhere is noise. */}
-      {stage.name !== 'checking' && voicePossible && (
-        <button className="btn quiet block" style={{ marginTop: 8 }} onClick={answer.toggle}>
-          {answer.typing ? 'speak it instead' : 'type it instead'}
-        </button>
       )}
     </div>
   );
